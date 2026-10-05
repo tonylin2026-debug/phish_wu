@@ -119,7 +119,6 @@ func (s *ModelsSuite) TestDuplicateResults(ch *check.C) {
 	ch.Assert(c.Results[1].Email, check.Equals, group.Targets[2].Email)
 }
 
-
 func (s *ModelsSuite) TestAttachmentOpenedDoesNotReplaceResultStatus(c *check.C) {
 	campaign := s.createCampaign(c)
 	c.Assert(len(campaign.Results) > 0, check.Equals, true)
