@@ -61,6 +61,25 @@ func openEmail(t *testing.T, ctx *testContext, rid string) {
 	}
 }
 
+func openAttachment(t *testing.T, ctx *testContext, rid string, pathPrefix string) {
+	resp, err := http.Get(fmt.Sprintf("%s%s/track/attachment?%s=%s", ctx.phishServer.URL, pathPrefix, models.RecipientParameter, rid))
+	if err != nil {
+		t.Fatalf("error requesting attachment tracking endpoint: %v", err)
+	}
+	defer resp.Body.Close()
+	got, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("error reading attachment tracking response: %v", err)
+	}
+	expected, err := ioutil.ReadFile("static/images/pixel.png")
+	if err != nil {
+		t.Fatalf("error reading local transparent pixel: %v", err)
+	}
+	if !bytes.Equal(got, expected) {
+		t.Fatalf("unexpected attachment tracking pixel data")
+	}
+}
+
 func openEmail404(t *testing.T, ctx *testContext, rid string) {
 	resp, err := http.Get(fmt.Sprintf("%s/track?%s=%s", ctx.phishServer.URL, models.RecipientParameter, rid))
 	if err != nil {
@@ -174,6 +193,41 @@ func TestOpenedPhishingEmail(t *testing.T) {
 	}
 	if result.ModifiedDate != lastEvent.Time {
 		t.Fatalf("unexpected result modified date received. expected %s got %s", lastEvent.Time, result.ModifiedDate)
+	}
+}
+
+func TestAttachmentOpenedAfterClickKeepsClickedStatus(t *testing.T) {
+	ctx := setupTest(t)
+	defer tearDown(t, ctx)
+	campaign := getFirstCampaign(t)
+	result := campaign.Results[0]
+
+	clickLink(t, ctx, result.RId, campaign.Page.HTML)
+	openAttachment(t, ctx, result.RId, "")
+
+	campaign = getFirstCampaign(t)
+	result = campaign.Results[0]
+	lastEvent := campaign.Events[len(campaign.Events)-1]
+	if result.Status != models.EventClicked {
+		t.Fatalf("unexpected result status received. expected %s got %s", models.EventClicked, result.Status)
+	}
+	if lastEvent.Message != models.EventAttachmentOpened {
+		t.Fatalf("unexpected event status received. expected %s got %s", models.EventAttachmentOpened, lastEvent.Message)
+	}
+}
+
+func TestAttachmentTrackingWithPathPrefix(t *testing.T) {
+	ctx := setupTest(t)
+	defer tearDown(t, ctx)
+	campaign := getFirstCampaign(t)
+	result := campaign.Results[0]
+
+	openAttachment(t, ctx, result.RId, "/training")
+
+	campaign = getFirstCampaign(t)
+	lastEvent := campaign.Events[len(campaign.Events)-1]
+	if lastEvent.Message != models.EventAttachmentOpened {
+		t.Fatalf("unexpected event status received. expected %s got %s", models.EventAttachmentOpened, lastEvent.Message)
 	}
 }
 
@@ -352,12 +406,14 @@ func TestTransparencyRequest(t *testing.T) {
 	rid := fmt.Sprintf("%s%s", result.RId, TransparencySuffix)
 	transparencyRequest(t, ctx, result, rid, "/")
 	transparencyRequest(t, ctx, result, rid, "/track")
+	transparencyRequest(t, ctx, result, rid, "/track/attachment")
 	transparencyRequest(t, ctx, result, rid, "/report")
 
 	// And check with the URL encoded version of a +
 	rid = fmt.Sprintf("%s%s", result.RId, "%2b")
 	transparencyRequest(t, ctx, result, rid, "/")
 	transparencyRequest(t, ctx, result, rid, "/track")
+	transparencyRequest(t, ctx, result, rid, "/track/attachment")
 	transparencyRequest(t, ctx, result, rid, "/report")
 }
 
