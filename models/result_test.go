@@ -118,3 +118,25 @@ func (s *ModelsSuite) TestDuplicateResults(ch *check.C) {
 	ch.Assert(c.Results[0].Email, check.Equals, group.Targets[0].Email)
 	ch.Assert(c.Results[1].Email, check.Equals, group.Targets[2].Email)
 }
+
+func (s *ModelsSuite) TestAttachmentOpenedDoesNotReplaceResultStatus(c *check.C) {
+	campaign := s.createCampaign(c)
+	c.Assert(len(campaign.Results) > 0, check.Equals, true)
+
+	result := campaign.Results[0]
+	statuses := []string{EventSent, EventOpened, EventClicked, EventDataSubmit}
+	for _, status := range statuses {
+		result.Status = status
+		c.Assert(db.Save(&result).Error, check.IsNil)
+		c.Assert(result.HandleAttachmentOpened(EventDetails{}), check.IsNil)
+
+		stored, err := GetResult(result.RId)
+		c.Assert(err, check.IsNil)
+		c.Assert(stored.Status, check.Equals, status)
+	}
+
+	events := []Event{}
+	err := db.Where("campaign_id = ? AND email = ? AND message = ?", result.CampaignId, result.Email, EventAttachmentOpened).Find(&events).Error
+	c.Assert(err, check.IsNil)
+	c.Assert(len(events), check.Equals, len(statuses))
+}

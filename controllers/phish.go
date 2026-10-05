@@ -110,6 +110,8 @@ func (ps *PhishingServer) registerRoutes() {
 	router := mux.NewRouter()
 	fileServer := http.FileServer(unindexed.Dir("./static/endpoint/"))
 	router.PathPrefix("/static/").Handler(http.StripPrefix("/static/", fileServer))
+	router.HandleFunc("/track/attachment", ps.AttachmentTrackHandler)
+	router.HandleFunc("/{path:.*}/track/attachment", ps.AttachmentTrackHandler)
 	router.HandleFunc("/track", ps.TrackHandler)
 	router.HandleFunc("/robots.txt", ps.RobotsHandler)
 	router.HandleFunc("/{path:.*}/track", ps.TrackHandler)
@@ -157,6 +159,40 @@ func (ps *PhishingServer) TrackHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	err = rs.HandleEmailOpened(d)
+	if err != nil {
+		log.Error(err)
+	}
+	http.ServeFile(w, r, "static/images/pixel.png")
+}
+
+// AttachmentTrackHandler records attachment-open events for authorized
+// simulation campaigns. The event is independent of Result.Status so a later
+// attachment open cannot replace a previously recorded click or submission.
+func (ps *PhishingServer) AttachmentTrackHandler(w http.ResponseWriter, r *http.Request) {
+	r, err := setupContext(r)
+	if err != nil {
+		if err != ErrInvalidRequest && err != ErrCampaignComplete {
+			log.Error(err)
+		}
+		http.NotFound(w, r)
+		return
+	}
+	// Preview requests return the pixel but do not write campaign events.
+	if _, ok := ctx.Get(r, "result").(models.EmailRequest); ok {
+		http.ServeFile(w, r, "static/images/pixel.png")
+		return
+	}
+
+	rs := ctx.Get(r, "result").(models.Result)
+	rid := ctx.Get(r, "rid").(string)
+	d := ctx.Get(r, "details").(models.EventDetails)
+
+	if strings.HasSuffix(rid, TransparencySuffix) {
+		ps.TransparencyHandler(w, r)
+		return
+	}
+
+	err = rs.HandleAttachmentOpened(d)
 	if err != nil {
 		log.Error(err)
 	}

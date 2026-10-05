@@ -106,6 +106,14 @@ func (r *Result) HandleEmailOpened(details EventDetails) error {
 	return db.Save(r).Error
 }
 
+// HandleAttachmentOpened records an attachment-open event without changing
+// Result.Status. Attachment opens are independent of the normal
+// Sent -> Opened -> Clicked -> Submitted progression.
+func (r *Result) HandleAttachmentOpened(details EventDetails) error {
+	_, err := r.createEvent(EventAttachmentOpened, details)
+	return err
+}
+
 // HandleClickedLink updates a Result in the case where the recipient clicked
 // the link in an email.
 func (r *Result) HandleClickedLink(details EventDetails) error {
