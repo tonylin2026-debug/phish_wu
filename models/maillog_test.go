@@ -2,6 +2,7 @@ package models
 
 import (
 	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"math"
@@ -402,6 +403,33 @@ func (s *ModelsSuite) TestEmbedAttachment(ch *check.C) {
 	// the text file was added as an attachment.
 	ch.Assert(got.Attachments, check.HasLen, 1)
 	ch.Assert(got.Attachments[0].Filename, check.Equals, "test.txt")
+}
+
+func (s *ModelsSuite) TestAttachmentTemplateUsesAttachmentTrackingURL(ch *check.C) {
+	ptx := PhishingTemplateContext{
+		TrackingURL:           "https://example.com/track?rid=abc1234",
+		AttachmentTrackingURL: "https://example.com/track/attachment?rid=abc1234",
+	}
+	content := "legacy={{.TrackingURL}}\nexplicit={{.AttachmentTrackingURL}}"
+	a := Attachment{
+		Name:    "tracking.txt",
+		Type:    "text/plain",
+		Content: base64.StdEncoding.EncodeToString([]byte(content)),
+	}
+
+	msg := gomail.NewMessage()
+	addAttachment(msg, a, ptx)
+
+	msgBuff := &bytes.Buffer{}
+	_, err := msg.WriteTo(msgBuff)
+	ch.Assert(err, check.IsNil)
+
+	got, err := email.NewEmailFromReader(msgBuff)
+	ch.Assert(err, check.IsNil)
+	ch.Assert(got.Attachments, check.HasLen, 1)
+	expected := fmt.Sprintf("legacy=%s\nexplicit=%s", ptx.AttachmentTrackingURL, ptx.AttachmentTrackingURL)
+	ch.Assert(string(got.Attachments[0].Content), check.Equals, expected)
+	ch.Assert(ptx.TrackingURL, check.Equals, "https://example.com/track?rid=abc1234")
 }
 
 func BenchmarkMailLogGenerate100(b *testing.B) {
