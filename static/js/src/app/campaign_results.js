@@ -30,6 +30,12 @@ var statuses = {
         icon: "fa-envelope-open",
         point: "ct-point-opened"
     },
+    "Attachment Opened": {
+        color: "#8e44ad",
+        label: "label-info",
+        icon: "fa-paperclip",
+        point: "ct-point-opened"
+    },
     "Clicked Link": {
         color: "#F39C12",
         label: "label-clicked",
@@ -100,6 +106,7 @@ var statuses = {
 var statusMapping = {
     "Email Sent": "sent",
     "Email Opened": "opened",
+    "Attachment Opened": "attachment_opened",
     "Clicked Link": "clicked",
     "Submitted Data": "submitted_data",
     "Email Reported": "reported",
@@ -116,6 +123,16 @@ var progressListing = [
 
 var campaign = {}
 var bubbles = []
+
+function countUniqueEventRecipients(message) {
+    var seen = {}
+    $.each(campaign.timeline || [], function (i, event) {
+        if (event.message == message && event.email) {
+            seen[event.email] = true
+        }
+    })
+    return Object.keys(seen).length
+}
 
 function dismiss() {
     $("#modal\\.flashes").empty()
@@ -669,6 +686,7 @@ function poll() {
                     email_series_data[progressListing[i]]++
                 }
             })
+            email_series_data["Attachment Opened"] = countUniqueEventRecipients("Attachment Opened")
             $.each(email_series_data, function (status, count) {
                 var email_data = []
                 if (!(status in statusMapping)) {
@@ -855,7 +873,8 @@ function load() {
                 renderTimelineChart({
                     data: timeline_series_data
                 })
-                $.each(email_series_data, function (status, count) {
+                email_series_data["Attachment Opened"] = countUniqueEventRecipients("Attachment Opened")
+            $.each(email_series_data, function (status, count) {
                     var email_data = []
                     if (!(status in statusMapping)) {
                         return true
