@@ -160,10 +160,23 @@ func (c *Campaign) Validate() error {
 	return nil
 }
 
-// UpdateStatus changes the campaign status appropriately
+// UpdateStatus changes the campaign status appropriately. A campaign that has
+// already been completed is left alone: the worker decides what to set from a
+// snapshot taken before its goroutines run, so without this guard a campaign
+// completed in that window is moved back to an earlier status while keeping
+// its completed_date - a state the interface renders as still running, and
+// which puts the campaign back on the wrong side of the completion check in
+// the phishing server.
 func (c *Campaign) UpdateStatus(s string) error {
-	// This could be made simpler, but I think there's a bug in gorm
-	return db.Table("campaigns").Where("id=?", c.Id).Update("status", s).Error
+	tx := db.Table("campaigns").Where("id = ? and status <> ?", c.Id, CampaignComplete).
+		Update("status", s)
+	if tx.Error != nil {
+		return tx.Error
+	}
+	if tx.RowsAffected > 0 {
+		c.Status = s
+	}
+	return nil
 }
 
 // AddEvent creates a new campaign event in the database

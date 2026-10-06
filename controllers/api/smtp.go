@@ -73,7 +73,12 @@ func (as *Server) SendingProfile(w http.ResponseWriter, r *http.Request) {
 		s = models.SMTP{}
 		err = json.NewDecoder(r.Body).Decode(&s)
 		if err != nil {
+			// encoding/json fills in every field it can and reports a type
+			// error at the end, so continuing here would persist a partly
+			// decoded sending profile and answer 200.
 			log.Error(err)
+			JSONResponse(w, models.Response{Success: false, Message: "Invalid request"}, http.StatusBadRequest)
+			return
 		}
 		if s.Id != id {
 			JSONResponse(w, models.Response{Success: false, Message: "/:id and /:smtp_id mismatch"}, http.StatusBadRequest)

@@ -45,6 +45,16 @@ func WithMailer(m mailer.Mailer) func(*DefaultWorker) error {
 	}
 }
 
+// unlockBatch releases maillogs that were locked for processing but will not
+// be handed to the mailer after all. Without it they keep processing set,
+// GetQueuedMailLogs never returns them again, and the only thing that frees
+// them is the unlock that runs once at startup.
+func unlockBatch(ms []*models.MailLog) {
+	if err := models.LockMailLogs(ms, false); err != nil {
+		log.Error(err)
+	}
+}
+
 // processCampaigns loads maillogs scheduled to be sent before the provided
 // time and sends them to the mailer.
 func (w *DefaultWorker) processCampaigns(t time.Time) error {
@@ -71,6 +81,10 @@ func (w *DefaultWorker) processCampaigns(t time.Time) error {
 		if !ok {
 			c, err = models.GetCampaignMailContext(m.CampaignId, m.UserId)
 			if err != nil {
+				// The whole batch was locked before this loop. Returning with
+				// it still locked strands every maillog in this minute, for
+				// every campaign, until gophish is restarted.
+				unlockBatch(ms)
 				return err
 			}
 			campaignCache[c.Id] = c
@@ -120,7 +134,10 @@ func (w *DefaultWorker) LaunchCampaign(c models.Campaign) {
 		log.Error(err)
 		return
 	}
-	models.LockMailLogs(ms, true)
+	if err = models.LockMailLogs(ms, true); err != nil {
+		log.Error(err)
+		return
+	}
 	// This is required since you cannot pass a slice of values
 	// that implements an interface as a slice of that interface.
 	mailEntries := []mailer.Mail{}
@@ -128,6 +145,7 @@ func (w *DefaultWorker) LaunchCampaign(c models.Campaign) {
 	campaignMailCtx, err := models.GetCampaignMailContext(c.Id, c.UserId)
 	if err != nil {
 		log.Error(err)
+		unlockBatch(ms)
 		return
 	}
 	for _, m := range ms {
@@ -140,6 +158,7 @@ func (w *DefaultWorker) LaunchCampaign(c models.Campaign) {
 		err = m.CacheCampaign(&campaignMailCtx)
 		if err != nil {
 			log.Error(err)
+			unlockBatch(ms)
 			return
 		}
 		mailEntries = append(mailEntries, m)

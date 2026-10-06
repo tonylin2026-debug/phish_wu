@@ -258,6 +258,9 @@ func PutGroup(g *Group) error {
 			log.WithFields(logrus.Fields{
 				"email": t.Email,
 			}).Error("Error deleting email")
+			// The transaction is already rolled back; carrying on would run
+			// the rest of the updates against a dead transaction.
+			return err
 		}
 	}
 	// Add any targets that are not in the database yet.
@@ -285,6 +288,10 @@ func PutGroup(g *Group) error {
 	err = tx.Save(g).Error
 	if err != nil {
 		log.Error(err)
+		// This was the one error path that neither committed nor rolled
+		// back. With SetMaxOpenConns(1) the leaked transaction holds the
+		// only connection and every later query in the process blocks.
+		tx.Rollback()
 		return err
 	}
 	err = tx.Commit().Error

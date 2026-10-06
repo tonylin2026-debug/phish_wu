@@ -80,7 +80,10 @@ func NewPostLimiter(opts ...PostLimiterOption) *PostLimiter {
 }
 
 func (limiter *PostLimiter) pollCleanup() {
-	ticker := time.NewTicker(time.Duration(limiter.cleanupInterval) * time.Second)
+	// cleanupInterval is already a time.Duration. Multiplying it by time.Second
+	// overflowed int64 and wrapped the interval to roughly 147 years, so this
+	// ticker never fired and the visitors map grew without bound.
+	ticker := time.NewTicker(limiter.cleanupInterval)
 	for range ticker.C {
 		limiter.Cleanup()
 	}

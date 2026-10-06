@@ -79,7 +79,12 @@ func (as *Server) Template(w http.ResponseWriter, r *http.Request) {
 		t = models.Template{}
 		err = json.NewDecoder(r.Body).Decode(&t)
 		if err != nil {
+			// encoding/json fills in every field it can and reports a type
+			// error at the end, so continuing here would persist a partly
+			// decoded template and answer 200.
 			log.Error(err)
+			JSONResponse(w, models.Response{Success: false, Message: "Invalid request"}, http.StatusBadRequest)
+			return
 		}
 		if t.Id != id {
 			JSONResponse(w, models.Response{Success: false, Message: "Error: /:id and template_id mismatch"}, http.StatusBadRequest)
