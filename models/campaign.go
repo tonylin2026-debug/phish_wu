@@ -60,15 +60,27 @@ type CampaignSummary struct {
 	Stats         CampaignStats `json:"stats"`
 }
 
-// CampaignStats is a struct representing the statistics for a single campaign
+// CampaignStats is a struct representing the statistics for a single campaign.
+//
+// Each action is counted independently from its own flag on the result, so a
+// recipient who opened the email, opened an attachment and clicked the link is
+// counted once in all three.
+//
+// OpenedEmail and EngagedEmail are deliberately both reported. OpenedEmail is
+// what the tracking pixel actually measured, which under-reports because mail
+// clients routinely block remote images. EngagedEmail counts everyone who did
+// anything at all - opened, opened an attachment, clicked or submitted - and is
+// the figure that survives image blocking.
 type CampaignStats struct {
-	Total         int64 `json:"total"`
-	EmailsSent    int64 `json:"sent"`
-	OpenedEmail   int64 `json:"opened"`
-	ClickedLink   int64 `json:"clicked"`
-	SubmittedData int64 `json:"submitted_data"`
-	EmailReported int64 `json:"email_reported"`
-	Error         int64 `json:"error"`
+	Total            int64 `json:"total"`
+	EmailsSent       int64 `json:"sent"`
+	OpenedEmail      int64 `json:"opened"`
+	EngagedEmail     int64 `json:"engaged"`
+	AttachmentOpened int64 `json:"attachment_opened"`
+	ClickedLink      int64 `json:"clicked"`
+	SubmittedData    int64 `json:"submitted_data"`
+	EmailReported    int64 `json:"email_reported"`
+	Error            int64 `json:"error"`
 }
 
 // Event contains the fields for an event
@@ -262,43 +274,57 @@ func (c *Campaign) generateSendDate(idx int, totalRecipients int) time.Time {
 	return c.LaunchDate.Add(time.Duration(offset) * time.Minute)
 }
 
-// getCampaignStats returns a CampaignStats object for the campaign with the given campaign ID.
-// It also backfills numbers as appropriate with a running total, so that the values are aggregated.
+// getCampaignStats returns a CampaignStats object for the campaign with the
+// given campaign ID.
+//
+// Every figure is counted directly from the independent action flags on the
+// result rather than inferred from the ordered Status column. The previous
+// implementation derived the numbers from Status and then backfilled them
+// (a click implied an open, an open implied a send), which meant a recipient
+// could only ever be counted in the single furthest stage they reached and
+// "opened" silently included people whose pixel never loaded.
 func getCampaignStats(cid int64) (CampaignStats, error) {
 	s := CampaignStats{}
-	query := db.Table("results").Where("campaign_id = ?", cid)
-	err := query.Count(&s.Total).Error
-	if err != nil {
+	// Each count needs its own query: gorm's Where is additive, so reusing one
+	// query value would AND every condition together.
+	forCampaign := func() *gorm.DB {
+		return db.Table("results").Where("campaign_id = ?", cid)
+	}
+	if err := forCampaign().Count(&s.Total).Error; err != nil {
 		return s, err
 	}
-	query.Where("status=?", EventDataSubmit).Count(&s.SubmittedData)
-	if err != nil {
+	if err := forCampaign().Where("email_opened = ?", true).Count(&s.OpenedEmail).Error; err != nil {
 		return s, err
 	}
-	query.Where("status=?", EventClicked).Count(&s.ClickedLink)
-	if err != nil {
+	if err := forCampaign().Where("attachment_opened = ?", true).Count(&s.AttachmentOpened).Error; err != nil {
 		return s, err
 	}
-	query.Where("reported=?", true).Count(&s.EmailReported)
-	if err != nil {
+	if err := forCampaign().Where("clicked_link = ?", true).Count(&s.ClickedLink).Error; err != nil {
 		return s, err
 	}
-	// Every submitted data event implies they clicked the link
-	s.ClickedLink += s.SubmittedData
-	err = query.Where("status=?", EventOpened).Count(&s.OpenedEmail).Error
-	if err != nil {
+	if err := forCampaign().Where("submitted_data = ?", true).Count(&s.SubmittedData).Error; err != nil {
 		return s, err
 	}
-	// Every clicked link event implies they opened the email
-	s.OpenedEmail += s.ClickedLink
-	err = query.Where("status=?", EventSent).Count(&s.EmailsSent).Error
-	if err != nil {
+	if err := forCampaign().Where("reported = ?", true).Count(&s.EmailReported).Error; err != nil {
 		return s, err
 	}
-	// Every opened email event implies the email was sent
-	s.EmailsSent += s.OpenedEmail
-	err = query.Where("status=?", Error).Count(&s.Error).Error
-	return s, err
+	if err := forCampaign().Where("status = ?", Error).Count(&s.Error).Error; err != nil {
+		return s, err
+	}
+	// Anyone who interacted in any way, regardless of whether the tracking
+	// pixel was allowed to load.
+	if err := forCampaign().Where(
+		"email_opened = ? OR attachment_opened = ? OR clicked_link = ? OR submitted_data = ?",
+		true, true, true, true).Count(&s.EngagedEmail).Error; err != nil {
+		return s, err
+	}
+	// Sent is everything that is no longer waiting to go out and did not error.
+	if err := forCampaign().Where("status NOT IN (?)",
+		[]string{StatusScheduled, StatusSending, StatusRetry, Error}).
+		Count(&s.EmailsSent).Error; err != nil {
+		return s, err
+	}
+	return s, nil
 }
 
 // GetCampaigns returns the campaigns owned by the given user.

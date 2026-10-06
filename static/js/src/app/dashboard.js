@@ -28,6 +28,12 @@ var statuses = {
         icon: "fa-envelope",
         point: "ct-point-opened"
     },
+    "Attachment Opened": {
+        color: "#8e44ad",
+        label: "label-info",
+        icon: "fa-paperclip",
+        point: "ct-point-opened"
+    },
     "Email Reported": {
         color: "#45d6ef",
         label: "label-warning",
@@ -82,9 +88,13 @@ var statuses = {
     }
 }
 
+// statsMapping maps the JSON keys returned by /api/campaigns/summary to the
+// chart labels. Keys not listed here (such as "engaged" and "total") are
+// skipped by generateStatsPieCharts.
 var statsMapping = {
     "sent": "Email Sent",
     "opened": "Email Opened",
+    "attachment_opened": "Attachment Opened",
     "email_reported": "Email Reported",
     "clicked": "Clicked Link",
     "submitted_data": "Submitted Data",
@@ -307,19 +317,19 @@ $(document).ready(function () {
                         },
                         {
                             className: "color-opened",
-                            targets: [3]
+                            targets: [3, 4]
                         },
                         {
                             className: "color-clicked",
-                            targets: [4]
-                        },
-                        {
-                            className: "color-success",
                             targets: [5]
                         },
                         {
-                            className: "color-reported",
+                            className: "color-success",
                             targets: [6]
+                        },
+                        {
+                            className: "color-reported",
+                            targets: [7]
                         }
                     ],
                     order: [
@@ -337,7 +347,7 @@ $(document).ready(function () {
                         var quickStats = launchDate + "<br><br>" + "Number of recipients: " + campaign.stats.total
                     } else {
                         launchDate = "Launch Date: " + moment(campaign.launch_date).format('MMMM Do YYYY, h:mm:ss a')
-                        var quickStats = launchDate + "<br><br>" + "Number of recipients: " + campaign.stats.total + "<br><br>" + "Emails opened: " + campaign.stats.opened + "<br><br>" + "Emails clicked: " + campaign.stats.clicked + "<br><br>" + "Submitted Credentials: " + campaign.stats.submitted_data + "<br><br>" + "Errors : " + campaign.stats.error + "<br><br>" + "Reported : " + campaign.stats.email_reported
+                        var quickStats = launchDate + "<br><br>" + "Number of recipients: " + campaign.stats.total + "<br><br>" + "Emails opened: " + campaign.stats.opened + "<br><br>" + "Attachments opened: " + campaign.stats.attachment_opened + "<br><br>" + "Emails clicked: " + campaign.stats.clicked + "<br><br>" + "Submitted Credentials: " + campaign.stats.submitted_data + "<br><br>" + "Reached (any interaction): " + campaign.stats.engaged + "<br><br>" + "Errors : " + campaign.stats.error + "<br><br>" + "Reported : " + campaign.stats.email_reported
                     }
                     // Add it to the list
                     campaignRows.push([
@@ -345,6 +355,7 @@ $(document).ready(function () {
                         campaign_date,
                         campaign.stats.sent,
                         campaign.stats.opened,
+                        campaign.stats.attachment_opened,
                         campaign.stats.clicked,
                         campaign.stats.submitted_data,
                         campaign.stats.email_reported,

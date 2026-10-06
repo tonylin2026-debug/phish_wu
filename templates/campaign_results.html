@@ -55,6 +55,19 @@
                     <div id="submitted_data_chart" style="height:200px;" class="col-lg-2 col-md-2"></div>
                     <div id="reported_chart" style="height:200px;" class="col-lg-2 col-md-2"></div>
                 </div>
+                <div class="row">
+                    <div class="col-lg-12 col-md-12 text-center" id="engagement_summary">
+                        <small class="text-muted">
+                            Email Opened (measured by tracking pixel):
+                            <strong id="stat_opened_measured">0</strong>
+                            &nbsp;&middot;&nbsp;
+                            Reached (opened, attachment opened, clicked or submitted):
+                            <strong id="stat_engaged">0</strong>
+                            <i class="fa fa-question-circle" data-toggle="tooltip" data-placement="top"
+                                title="Mail clients often block remote images, so the measured open count under-reports. The reached count includes everyone who interacted in any way."></i>
+                        </small>
+                    </div>
+                </div>
                 <div class="row" id="resultsMapContainer">
                     <div class="col-md-6">
                         <p style="text-align:center;">Targets Map</p>

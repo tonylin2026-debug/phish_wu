@@ -42,6 +42,11 @@ var TEMPLATE_TAGS = [{
         id: 9,
         name: 'BaseURL',
         description: 'The base URL with the path and rid parameter stripped. Useful for making links to static files.'
+    },
+    {
+        id: 10,
+        name: 'AttachmentTrackingURL',
+        description: 'The URL to track attachments being opened. Use this inside an attachment instead of TrackingURL.'
     }
 ];
 

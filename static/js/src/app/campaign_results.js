@@ -112,26 +112,64 @@ var statusMapping = {
     "Email Reported": "reported",
 }
 
-// This is an underwhelming attempt at an enum
-// until I have time to refactor this appropriately.
-var progressListing = [
-    "Email Sent",
-    "Email Opened",
-    "Clicked Link",
-    "Submitted Data"
-]
+// actionFlags maps each donut chart to the independent flag on the result that
+// feeds it. Every action is read straight from its own flag, so a recipient who
+// opened the email, opened an attachment and clicked the link is counted in all
+// three. The previous version derived these from the single ordered status
+// column and backfilled earlier stages, which could not represent a recipient
+// performing several actions and inflated "opened" with people who only clicked.
+var actionFlags = {
+    "Email Sent": function (r) {
+        return r.status !== "Scheduled" && r.status !== "Sending" &&
+            r.status !== "Retrying" && r.status !== "Error"
+    },
+    "Email Opened": function (r) { return !!r.email_opened },
+    "Attachment Opened": function (r) { return !!r.attachment_opened },
+    "Clicked Link": function (r) { return !!r.clicked_link },
+    "Submitted Data": function (r) { return !!r.submitted_data },
+    "Email Reported": function (r) { return !!r.reported }
+}
+
+// A recipient counts as engaged if they did anything at all. Mail clients
+// routinely block remote images, so "Email Opened" under-reports; this is the
+// figure that survives image blocking.
+function isEngaged(r) {
+    return !!(r.email_opened || r.attachment_opened || r.clicked_link || r.submitted_data)
+}
 
 var campaign = {}
 var bubbles = []
 
-function countUniqueEventRecipients(message) {
-    var seen = {}
-    $.each(campaign.timeline || [], function (i, event) {
-        if (event.message == message && event.email) {
-            seen[event.email] = true
+// computeSeries counts every tracked action across the campaign's results.
+function computeSeries(results) {
+    var data = {
+        engaged: 0
+    }
+    Object.keys(actionFlags).forEach(function (status) {
+        data[status] = 0
+    })
+    $.each(results || [], function (i, result) {
+        Object.keys(actionFlags).forEach(function (status) {
+            if (actionFlags[status](result)) {
+                data[status]++
+            }
+        })
+        if (isEngaged(result)) {
+            data.engaged++
         }
     })
-    return Object.keys(seen).length
+    return data
+}
+
+// renderEngagementSummary writes the two-column opened figure under the charts:
+// what the tracking pixel measured, and how many recipients were reached by any
+// means at all.
+function renderEngagementSummary(series, total) {
+    var pct = function (n) {
+        return total > 0 ? " (" + Math.floor((n / total) * 100) + "%)" : ""
+    }
+    $("#stat_opened_measured").text(series["Email Opened"] + pct(series["Email Opened"]))
+    $("#stat_engaged").text(series.engaged + pct(series.engaged))
 }
 
 function dismiss() {
@@ -670,23 +708,8 @@ function poll() {
                 data: timeline_series_data
             })
             /* Update the results donut chart */
-            var email_series_data = {}
-            // Load the initial data
-            Object.keys(statusMapping).forEach(function (k) {
-                email_series_data[k] = 0
-            });
-            $.each(campaign.results, function (i, result) {
-                email_series_data[result.status]++;
-                if (result.reported) {
-                    email_series_data['Email Reported']++
-                }
-                // Backfill status values
-                var step = progressListing.indexOf(result.status)
-                for (var i = 0; i < step; i++) {
-                    email_series_data[progressListing[i]]++
-                }
-            })
-            email_series_data["Attachment Opened"] = countUniqueEventRecipients("Attachment Opened")
+            var email_series_data = computeSeries(campaign.results)
+            renderEngagementSummary(email_series_data, campaign.results.length)
             $.each(email_series_data, function (status, count) {
                 var email_data = []
                 if (!(status in statusMapping)) {
@@ -718,6 +741,9 @@ function poll() {
                         rowData[8] = moment(result.send_date).format('MMMM Do YYYY, h:mm:ss a')
                         rowData[7] = result.reported
                         rowData[6] = result.status
+                        rowData[9] = result.email_opened
+                        rowData[10] = result.attachment_opened
+                        rowData[11] = result.clicked_link
                         resultsTable.row(i).data(rowData)
                         if (row.child.isShown()) {
                             $(row.node()).find("#caret").removeClass("fa-caret-right")
@@ -782,11 +808,27 @@ function load() {
                             "targets": [1]
                         }, {
                             "visible": false,
-                            "targets": [0, 8]
+                            "targets": [0, 8, 9, 10, 11]
                         },
                         {
+                            // Show each action separately so a single row makes
+                            // it obvious that a recipient opened the email AND
+                            // opened the attachment AND clicked the link. The
+                            // status label alone can only ever show the
+                            // furthest step reached.
                             "render": function (data, type, row) {
-                                return createStatusLabel(data, row[8])
+                                if (type !== "display") {
+                                    return data
+                                }
+                                var icon = function (done, cls, title) {
+                                    return "<i class='fa " + cls + (done ? " text-danger" : " text-muted") +
+                                        "' title='" + title + (done ? "" : " (not recorded)") + "'></i>"
+                                }
+                                return "<span class='action-icons'>" +
+                                    icon(row[9], "fa-envelope-open", "Email Opened") + " " +
+                                    icon(row[10], "fa-paperclip", "Attachment Opened") + " " +
+                                    icon(row[11], "fa-mouse-pointer", "Clicked Link") +
+                                    "</span> " + createStatusLabel(data, row[8])
                             },
                             "targets": [6]
                         },
@@ -806,11 +848,9 @@ function load() {
                     ]
                 });
                 resultsTable.clear();
-                var email_series_data = {}
                 var timeline_series_data = []
-                Object.keys(statusMapping).forEach(function (k) {
-                    email_series_data[k] = 0
-                });
+                var email_series_data = computeSeries(campaign.results)
+                renderEngagementSummary(email_series_data, campaign.results.length)
                 $.each(campaign.results, function (i, result) {
                     resultsTable.row.add([
                         result.id,
@@ -821,17 +861,11 @@ function load() {
                         escapeHtml(result.position) || "",
                         result.status,
                         result.reported,
-                        moment(result.send_date).format('MMMM Do YYYY, h:mm:ss a')
+                        moment(result.send_date).format('MMMM Do YYYY, h:mm:ss a'),
+                        result.email_opened,
+                        result.attachment_opened,
+                        result.clicked_link
                     ])
-                    email_series_data[result.status]++;
-                    if (result.reported) {
-                        email_series_data['Email Reported']++
-                    }
-                    // Backfill status values
-                    var step = progressListing.indexOf(result.status)
-                    for (var i = 0; i < step; i++) {
-                        email_series_data[progressListing[i]]++
-                    }
                 })
                 resultsTable.draw();
                 // Setup tooltips
@@ -873,8 +907,7 @@ function load() {
                 renderTimelineChart({
                     data: timeline_series_data
                 })
-                email_series_data["Attachment Opened"] = countUniqueEventRecipients("Attachment Opened")
-            $.each(email_series_data, function (status, count) {
+                $.each(email_series_data, function (status, count) {
                     var email_data = []
                     if (!(status in statusMapping)) {
                         return true
