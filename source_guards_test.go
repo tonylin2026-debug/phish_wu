@@ -30,7 +30,7 @@ var campaignResultsSources = []string{
 
 var unguardedResultsLength = regexp.MustCompile(`campaign\.results\.length`)
 
-var dropColumn = regexp.MustCompile("(?i)DROP\s+COLUMN\s+`?([A-Za-z0-9_]+)`?")
+var dropColumn = regexp.MustCompile(`(?i)DROP\s+COLUMN\s+\x60?([A-Za-z0-9_]+)\x60?`)
 
 // TestCampaignResultsLengthIsGuarded fails if the Campaign Results page
 // dereferences .length on campaign.results without a fallback.
@@ -75,8 +75,17 @@ func droppedColumns(t *testing.T, path string) []string {
 	if len(parts) != 2 {
 		return nil
 	}
+	// Strip SQL comments first, so that prose explaining why a column is kept
+	// does not itself read as a statement dropping it.
+	statements := []string{}
+	for _, line := range strings.Split(parts[1], "\n") {
+		if strings.HasPrefix(strings.TrimSpace(line), "--") {
+			continue
+		}
+		statements = append(statements, line)
+	}
 	columns := []string{}
-	for _, match := range dropColumn.FindAllStringSubmatch(parts[1], -1) {
+	for _, match := range dropColumn.FindAllStringSubmatch(strings.Join(statements, "\n"), -1) {
 		columns = append(columns, strings.ToLower(match[1]))
 	}
 	sort.Strings(columns)
