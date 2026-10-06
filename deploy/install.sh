@@ -84,6 +84,7 @@ done
 [ "$(id -u)" -eq 0 ] || die "run this with sudo"
 
 if [ -r /etc/os-release ]; then
+    # shellcheck source=/dev/null
     . /etc/os-release
     [ "${ID:-}" = "ubuntu" ] || warn "this script targets Ubuntu; found ${PRETTY_NAME:-unknown}"
 else
