@@ -428,7 +428,8 @@ func (s *ModelsSuite) TestAttachmentTemplateUsesAttachmentTrackingURL(ch *check.
 	ch.Assert(err, check.IsNil)
 	ch.Assert(got.Attachments, check.HasLen, 1)
 	expected := fmt.Sprintf("legacy=%s\nexplicit=%s", ptx.AttachmentTrackingURL, ptx.AttachmentTrackingURL)
-	ch.Assert(string(got.Attachments[0].Content), check.Equals, expected)
+	// Attachment.Content is still base64 as parsed back out of the message.
+	ch.Assert(decodeAttachment(got.Attachments[0].Content), check.Equals, expected)
 	ch.Assert(ptx.TrackingURL, check.Equals, "https://example.com/track?rid=abc1234")
 }
 

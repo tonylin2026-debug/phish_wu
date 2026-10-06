@@ -196,6 +196,23 @@ func (s *ModelsSuite) TestCampaignStatsCountActionsIndependently(c *check.C) {
 	c.Assert(stats.EmailReported, check.Equals, int64(0))
 }
 
+// decodeAttachment returns the usable body of an attachment parsed back out of
+// a generated message.
+//
+// jordan-wright/email does not decode the Content-Transfer-Encoding of
+// attachment parts, so Attachment.Content is still base64 and wrapped at 76
+// columns. Anything that wants to assert on the rendered text has to undo that
+// first.
+func decodeAttachment(raw []byte) string {
+	// strings.Fields drops the \r\n wrapping that base64 line folding adds.
+	decoded, err := base64.StdEncoding.DecodeString(strings.Join(strings.Fields(string(raw)), ""))
+	if err != nil {
+		// Not base64 after all - hand back what we were given.
+		return string(raw)
+	}
+	return string(decoded)
+}
+
 // TestAttachmentTrackerTagUsesAttachmentEndpoint guards the other way the two
 // actions could interfere: {{.Tracker}} is a pre-rendered <img> tag built from
 // TrackingURL, so without an explicit override an attachment using it would
@@ -223,7 +240,9 @@ func (s *ModelsSuite) TestAttachmentTrackerTagUsesAttachmentEndpoint(c *check.C)
 	c.Assert(err, check.IsNil)
 	c.Assert(got.Attachments, check.HasLen, 1)
 
-	rendered := string(got.Attachments[0].Content)
+	rendered := decodeAttachment(got.Attachments[0].Content)
+	c.Assert(rendered, check.Equals,
+		"tracker=<img alt='' style='display: none' src='"+ptx.AttachmentTrackingURL+"'/>")
 	c.Assert(strings.Contains(rendered, ptx.AttachmentTrackingURL), check.Equals, true)
 	c.Assert(strings.Contains(rendered, "src='https://example.com/track?rid=abc1234'"), check.Equals, false)
 

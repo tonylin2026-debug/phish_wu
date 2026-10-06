@@ -198,7 +198,12 @@ func (c *Campaign) getDetails() error {
 		log.Warnf("%s: results not found for campaign", err)
 		return err
 	}
-	err = db.Model(c).Related(&c.Events).Error
+	// Order explicitly by insertion id. The timeline views and several callers
+	// read these chronologically, but without an ORDER BY the order rows come
+	// back in is whatever the query planner's chosen index happens to produce -
+	// a composite index on (campaign_id, message) silently returns them sorted
+	// by message instead.
+	err = db.Table("events").Where("campaign_id = ?", c.Id).Order("id asc").Find(&c.Events).Error
 	if err != nil {
 		log.Warnf("%s: events not found for campaign", err)
 		return err
@@ -448,7 +453,7 @@ func GetCampaignResults(id int64, uid int64) (CampaignResults, error) {
 		log.Errorf("%s: results not found for campaign", err)
 		return cr, err
 	}
-	err = db.Table("events").Where("campaign_id=?", cr.Id).Find(&cr.Events).Error
+	err = db.Table("events").Where("campaign_id=?", cr.Id).Order("id asc").Find(&cr.Events).Error
 	if err != nil {
 		log.Errorf("%s: events not found for campaign", err)
 		return cr, err
