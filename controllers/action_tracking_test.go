@@ -205,3 +205,65 @@ func TestCampaignSummaryReportsEachAction(t *testing.T) {
 		t.Fatalf("unexpected engaged count. expected 2 got %d", summary.Stats.EngagedEmail)
 	}
 }
+
+// requestPath performs a bare GET against the phishing server for an arbitrary
+// path, carrying the recipient parameter. Nothing is asserted about the
+// response: what matters here is what gets written to the database, not what
+// comes back over the wire.
+func requestPath(t *testing.T, ctx *testContext, path, rid string) {
+	t.Helper()
+	resp, err := http.Get(fmt.Sprintf("%s%s?%s=%s", ctx.phishServer.URL, path, models.RecipientParameter, rid))
+	if err != nil {
+		t.Fatalf("error requesting %s: %v", path, err)
+	}
+	resp.Body.Close()
+}
+
+// assertTrackingPathDoesNotClick drives one tracking URL and asserts that it
+// recorded the action it names and did not record a link click.
+func assertTrackingPathDoesNotClick(t *testing.T, path string, wantEmailOpened, wantAttachmentOpened bool) {
+	t.Helper()
+	ctx := setupTest(t)
+	defer tearDown(t, ctx)
+	rid := getFirstCampaign(t).Results[0].RId
+
+	requestPath(t, ctx, path, rid)
+
+	got := getFirstCampaign(t).Results[0]
+	if got.ClickedLink {
+		t.Errorf("%s recorded a link click, but the recipient never clicked a link", path)
+	}
+	if got.EmailOpened != wantEmailOpened {
+		t.Errorf("%s: email_opened = %v, want %v", path, got.EmailOpened, wantEmailOpened)
+	}
+	if got.AttachmentOpened != wantAttachmentOpened {
+		t.Errorf("%s: attachment_opened = %v, want %v", path, got.AttachmentOpened, wantAttachmentOpened)
+	}
+}
+
+// TestTrailingSlashDoesNotRecordAFalseClick covers the tracking endpoints as
+// they are actually requested in the wild, rather than only as gophish
+// generates them.
+//
+// The phishing router ends in a catch-all "/{path:.*}" that serves the landing
+// page, and gorilla/mux treats "/track/attachment/" as a different path from
+// "/track/attachment" unless StrictSlash is set - which the phishing router
+// deliberately does not set, because a landing page may live at any path. So a
+// tracking URL that arrives with a trailing slash, appended by a mail security
+// gateway, a link rewriter or any proxy that normalises URLs, misses its own
+// route, falls through to the landing page handler, and is recorded as a link
+// click.
+//
+// That conflates two of the three actions this fork exists to keep apart: an
+// attachment open is reported as a click the recipient never made.
+func TestTrailingSlashDoesNotRecordAFalseClick(t *testing.T) {
+	t.Run("attachment", func(t *testing.T) {
+		assertTrackingPathDoesNotClick(t, "/track/attachment/", false, true)
+	})
+	t.Run("attachment_with_prefix", func(t *testing.T) {
+		assertTrackingPathDoesNotClick(t, "/landing/track/attachment/", false, true)
+	})
+	t.Run("pixel", func(t *testing.T) {
+		assertTrackingPathDoesNotClick(t, "/track/", true, false)
+	})
+}
