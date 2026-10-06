@@ -91,6 +91,31 @@ jobs:
             && { echo "::error::gophish is listening on a public address"; exit 1; }
           echo "both listeners are loopback-bound"
 
+      # A release zip ships a config.json with the phishing server on
+      # 0.0.0.0:80. If the installer ever lets that reach the install directory
+      # the service either fails to bind or, worse, comes up listening on a
+      # public address with none of the configured settings.
+      - name: The packaged default config did not win
+        run: |
+          set -euo pipefail
+          listen=$(sudo python3 -c "import json;print(json.load(open('/opt/gophish/config.json'))['phish_server']['listen_url'])")
+          echo "phish_server.listen_url = $listen"
+          test "$listen" = "127.0.0.1:8080"
+          sudo journalctl -u gophish --no-pager | grep -q 'Starting phishing server at http://127.0.0.1:8080'
+          echo "the generated configuration is the one in effect"
+
+      - name: Hostname resolution works under the systemd sandbox
+        run: |
+          set -euo pipefail
+          # The unit restricts address families. Built with cgo, Go may use the
+          # system resolver over a unix socket, so AF_UNIX has to be allowed or
+          # SMTP and IMAP hostname lookups fail at campaign time.
+          sudo -u gophish systemd-run --quiet --pipe --wait \
+            -p RestrictAddressFamilies="AF_UNIX AF_INET AF_INET6" \
+            -p NoNewPrivileges=true \
+            getent hosts github.com
+          echo "resolution works with the same restrictions the unit applies"
+
       - name: The phishing server answers
         run: |
           set -euo pipefail

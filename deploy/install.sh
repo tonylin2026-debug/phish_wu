@@ -168,12 +168,12 @@ fi
 say "Installing into $INSTALL_DIR"
 mkdir -p "$INSTALL_DIR"
 
-# A release zip ships its own config.json. Drop it before copying so an
-# existing configuration - including any hand edits - is never clobbered.
-if [ -f "$INSTALL_DIR/config.json" ]; then
-    say "Keeping the existing config.json"
-    rm -f "$WORK/unpacked/config.json"
-fi
+# A release zip ships its own config.json, with the phishing server on
+# 0.0.0.0:80. That is never what we want here: either the operator already has
+# a configuration we must not touch, or we are about to write a fresh one. Drop
+# it before copying, otherwise it lands in the install directory and the check
+# below cannot tell it apart from a real existing config.
+rm -f "$WORK/unpacked/config.json"
 
 # Copy over the top rather than replacing the directory: gophish.db and the
 # generated admin certificate live here and must survive an upgrade.
@@ -182,7 +182,7 @@ cp -a "$WORK/unpacked/." "$INSTALL_DIR/"
 # ---------------------------------------------------------------- config ----
 
 if [ -f "$INSTALL_DIR/config.json" ]; then
-    :
+    say "Keeping the existing config.json"
 else
     say "Writing config.json"
 
@@ -264,7 +264,10 @@ ProtectHome=true
 ProtectKernelTunables=true
 ProtectKernelModules=true
 ProtectControlGroups=true
-RestrictAddressFamilies=AF_INET AF_INET6
+# AF_UNIX is needed as well: this binary is built with cgo, so Go may use the
+# system resolver, which talks to nscd or systemd-resolved over a unix socket.
+# Without it, hostname lookups for the SMTP and IMAP servers fail.
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
 RestrictNamespaces=true
 LockPersonality=true
 MemoryDenyWriteExecute=true
