@@ -34,3 +34,10 @@ jobs:
     
     - name: Test
       run: go test ./...
+
+    # The phishing server records email opens, attachment opens and link
+    # clicks from three separate requests that can arrive at the same time
+    # for the same recipient, so those packages need checking under the race
+    # detector rather than just the plain test run above.
+    - name: Test with race detector
+      run: go test -race -count=1 ./models/... ./controllers/...
