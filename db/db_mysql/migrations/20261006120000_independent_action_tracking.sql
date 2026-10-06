@@ -55,10 +55,15 @@ CREATE INDEX `idx_events_campaign_message` ON `events` (`campaign_id`, `message`
 
 -- +goose Down
 -- SQL section 'Down' is executed when this migration is rolled back
+--
+-- The four columns are deliberately kept, matching the SQLite migration and
+-- this repository's convention for an ADD COLUMN migration (see
+-- 20180223101813_0.5.1_user_reporting and 20200914000000_0.11.0_last_login).
+-- Dropping them here but not there would roll the two dialects back to
+-- different schemas, and SQLite cannot drop them at all: go.mod pins
+-- mattn/go-sqlite3 v2.0.3, roughly SQLite 3.30, while ALTER TABLE DROP COLUMN
+-- arrived in 3.35. Re-applying after a rollback would then fail with
+-- "duplicate column name" and gophish would refuse to start.
 DROP INDEX `idx_events_campaign_message` ON `events`;
 DROP INDEX `idx_results_campaign_id` ON `results`;
 DROP INDEX `idx_results_r_id` ON `results`;
-ALTER TABLE `results` DROP COLUMN `submitted_data`;
-ALTER TABLE `results` DROP COLUMN `clicked_link`;
-ALTER TABLE `results` DROP COLUMN `attachment_opened`;
-ALTER TABLE `results` DROP COLUMN `email_opened`;

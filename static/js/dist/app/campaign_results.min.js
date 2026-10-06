@@ -161,6 +161,16 @@ function computeSeries(results) {
     return data
 }
 
+// percentOf returns count as a whole-number percentage of total. A campaign
+// with no recipients would otherwise divide by zero and hand Highcharts NaN
+// for the value of every slice.
+function percentOf(count, total) {
+    if (!total) {
+        return 0
+    }
+    return Math.floor((count / total) * 100)
+}
+
 // renderEngagementSummary writes the two-column opened figure under the charts:
 // what the tracking pixel measured, and how many recipients were reached by any
 // means at all.
@@ -708,8 +718,11 @@ function poll() {
                 data: timeline_series_data
             })
             /* Update the results donut chart */
-            var email_series_data = computeSeries(campaign.results)
-            renderEngagementSummary(email_series_data, campaign.results.length)
+            // A campaign with no recipients is serialised without a "results"
+            // key at all, so this is undefined rather than an empty array.
+            var results = campaign.results || []
+            var email_series_data = computeSeries(results)
+            renderEngagementSummary(email_series_data, results.length)
             $.each(email_series_data, function (status, count) {
                 var email_data = []
                 if (!(status in statusMapping)) {
@@ -717,12 +730,12 @@ function poll() {
                 }
                 email_data.push({
                     name: status,
-                    y: Math.floor((count / campaign.results.length) * 100),
+                    y: percentOf(count, results.length),
                     count: count
                 })
                 email_data.push({
                     name: '',
-                    y: 100 - Math.floor((count / campaign.results.length) * 100)
+                    y: 100 - percentOf(count, results.length)
                 })
                 var chart = $("#" + statusMapping[status] + "_chart").highcharts()
                 chart.series[0].update({
@@ -849,8 +862,11 @@ function load() {
                 });
                 resultsTable.clear();
                 var timeline_series_data = []
-                var email_series_data = computeSeries(campaign.results)
-                renderEngagementSummary(email_series_data, campaign.results.length)
+                // A campaign with no recipients is serialised without a "results"
+                // key at all, so this is undefined rather than an empty array.
+                var results = campaign.results || []
+                var email_series_data = computeSeries(results)
+                renderEngagementSummary(email_series_data, results.length)
                 $.each(campaign.results, function (i, result) {
                     resultsTable.row.add([
                         result.id,
@@ -914,12 +930,12 @@ function load() {
                     }
                     email_data.push({
                         name: status,
-                        y: Math.floor((count / campaign.results.length) * 100),
+                        y: percentOf(count, results.length),
                         count: count
                     })
                     email_data.push({
                         name: '',
-                        y: 100 - Math.floor((count / campaign.results.length) * 100)
+                        y: 100 - percentOf(count, results.length)
                     })
                     var chart = renderPieChart({
                         elemId: statusMapping[status] + '_chart',

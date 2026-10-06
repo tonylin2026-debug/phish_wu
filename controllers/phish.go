@@ -110,13 +110,27 @@ func (ps *PhishingServer) registerRoutes() {
 	router := mux.NewRouter()
 	fileServer := http.FileServer(unindexed.Dir("./static/endpoint/"))
 	router.PathPrefix("/static/").Handler(http.StripPrefix("/static/", fileServer))
+	// Each tracking route is registered in its trailing-slash form as well.
+	// StrictSlash cannot be used for this: it would redirect on every route,
+	// including the catch-all below, which serves landing pages at arbitrary
+	// paths. Without these forms a tracking URL that a mail security gateway,
+	// a link rewriter or a proxy has normalised misses its own route, falls
+	// through to the landing page handler, and is recorded as a link click the
+	// recipient never made - conflating two of the actions that are otherwise
+	// tracked independently.
 	router.HandleFunc("/track/attachment", ps.AttachmentTrackHandler)
+	router.HandleFunc("/track/attachment/", ps.AttachmentTrackHandler)
 	router.HandleFunc("/{path:.*}/track/attachment", ps.AttachmentTrackHandler)
+	router.HandleFunc("/{path:.*}/track/attachment/", ps.AttachmentTrackHandler)
 	router.HandleFunc("/track", ps.TrackHandler)
+	router.HandleFunc("/track/", ps.TrackHandler)
 	router.HandleFunc("/robots.txt", ps.RobotsHandler)
 	router.HandleFunc("/{path:.*}/track", ps.TrackHandler)
+	router.HandleFunc("/{path:.*}/track/", ps.TrackHandler)
 	router.HandleFunc("/{path:.*}/report", ps.ReportHandler)
+	router.HandleFunc("/{path:.*}/report/", ps.ReportHandler)
 	router.HandleFunc("/report", ps.ReportHandler)
+	router.HandleFunc("/report/", ps.ReportHandler)
 	router.HandleFunc("/{path:.*}", ps.PhishHandler)
 
 	// Setup GZIP compression
