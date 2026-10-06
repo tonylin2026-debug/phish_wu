@@ -1,26 +1,91 @@
-events {
-    worker_connections 4096;
+﻿{{ ansible_managed | comment }}
+# Rendered from roles/gophish/templates/nginx.conf.j2
+# See deploy/nginx.conf.example for the annotated standalone version.
+
+# --------------------------------------------------------------------------
+# Phishing server - public
+# --------------------------------------------------------------------------
+server {
+    listen 80;
+    listen [::]:80;
+    server_name {{ phish_domain }};
+
+    location /.well-known/acme-challenge/ { root /var/www/html; }
+    location / { return 301 https://$host$request_uri; }
 }
 
-http {
-    server {
-        listen 80;
-        server_name {{gophish_domain}};
-        return 301 https://$host$request_uri;
-    }
+server {
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
+    server_name {{ phish_domain }};
 
-    server {
-        listen 443 ssl;
-        ssl_certificate {{ gophish_crt_path }};
-        ssl_certificate_key {{ gophish_ssl_cert_path }};
-        server_name {{gophish_domain}};
-        location / {
-            proxy_pass         https://127.0.0.1:8080;
-            proxy_redirect     off;
-            proxy_set_header   Host $host;
-            proxy_set_header   X-Real-IP $remote_addr;
-            proxy_set_header   X-Forwarded-For $proxy_add_x_forwarded_for;
-            proxy_set_header   X-Forwarded-Host $server_name;
-        }
+    ssl_certificate     {{ phish_cert_path }};
+    ssl_certificate_key {{ phish_key_path }};
+    ssl_protocols       TLSv1.2 TLSv1.3;
+
+    access_log /var/log/nginx/phish_wu-phish.access.log;
+
+    location / {
+        proxy_pass         http://{{ phish_listen | default('127.0.0.1:8080') }};
+        proxy_http_version 1.1;
+        proxy_set_header   Host              $host;
+        proxy_set_header   X-Real-IP         $remote_addr;
+        proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header   X-Forwarded-Proto $scheme;
+        client_max_body_size 25m;
+    }
+}
+
+# --------------------------------------------------------------------------
+# Admin interface - restricted
+# --------------------------------------------------------------------------
+server {
+    listen 80;
+    listen [::]:80;
+    server_name {{ admin_domain }};
+
+    location /.well-known/acme-challenge/ { root /var/www/html; }
+    location / { return 301 https://$host$request_uri; }
+}
+
+server {
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
+    server_name {{ admin_domain }};
+
+    ssl_certificate     {{ admin_cert_path }};
+    ssl_certificate_key {{ admin_key_path }};
+    ssl_protocols       TLSv1.2 TLSv1.3;
+
+{% if admin_allowed_sources %}
+    # Anyone who reaches this interface can read every captured credential.
+{% for cidr in admin_allowed_sources %}
+    allow {{ cidr }};
+{% endfor %}
+    deny all;
+{% else %}
+    # WARNING: admin_allowed_sources is empty, so the admin interface is open
+    # to the whole internet. Set it in roles/gophish/vars/main.yml.
+{% endif %}
+
+    add_header Strict-Transport-Security "max-age=31536000" always;
+    add_header X-Content-Type-Options    "nosniff"          always;
+    add_header Referrer-Policy           "same-origin"      always;
+
+    access_log /var/log/nginx/phish_wu-admin.access.log;
+
+    location / {
+        # gophish keeps TLS on for the admin interface so its session cookie
+        # carries the Secure flag. The certificate is self-signed and the
+        # connection never leaves the host, hence proxy_ssl_verify off.
+        proxy_pass         https://{{ admin_listen | default('127.0.0.1:3333') }};
+        proxy_ssl_verify   off;
+        proxy_http_version 1.1;
+        proxy_set_header   Host              $host;
+        proxy_set_header   X-Real-IP         $remote_addr;
+        proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header   X-Forwarded-Proto $scheme;
+        client_max_body_size 50m;
+        proxy_read_timeout   300s;
     }
 }

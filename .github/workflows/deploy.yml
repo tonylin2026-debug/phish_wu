@@ -1,0 +1,254 @@
+name: Ubuntu deployment
+
+# deploy/install.sh is the documented way to get this onto a server, so it is
+# worth running for real rather than trusting that it still works. The hosted
+# Ubuntu runners have systemd, so the unit file, the service user and the
+# loopback listeners can all be exercised end to end.
+
+on:
+  - pull_request
+  - push
+
+jobs:
+  install:
+    name: Install on Ubuntu
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+
+      - name: Lint the installer
+        run: shellcheck deploy/install.sh
+
+      # Assemble the same payload .github/workflows/release.yml produces, so
+      # the installer is tested against a realistic package.
+      - name: Build a release package
+        run: |
+          set -euo pipefail
+          go build -o gophish .
+          mkdir -p out
+          zip -qr out/gophish-test-linux-64bit.zip \
+            gophish \
+            static/js/dist \
+            static/js/src/vendor/ckeditor \
+            static/css/dist \
+            static/images \
+            static/font \
+            static/db \
+            db \
+            templates \
+            README.md \
+            VERSION \
+            LICENSE \
+            config.json
+          ls -lh out/
+
+      - name: Install
+        run: |
+          sudo ./deploy/install.sh \
+            --package out/gophish-test-linux-64bit.zip \
+            --admin-domain admin.example.test \
+            --contact-address security@example.test
+
+      - name: The service is running
+        run: |
+          set -euo pipefail
+          systemctl is-active --quiet gophish || {
+            sudo journalctl -u gophish --no-pager -n 50
+            exit 1
+          }
+          systemctl is-enabled --quiet gophish
+          echo "running as: $(systemctl show -p User --value gophish)"
+          test "$(systemctl show -p User --value gophish)" = "gophish"
+          test "$(systemctl show -p WorkingDirectory --value gophish)" = "/opt/gophish"
+
+      - name: It is not running as root, and the hardening took effect
+        run: |
+          set -euo pipefail
+          pid=$(systemctl show -p MainPID --value gophish)
+          owner=$(ps -o user= -p "$pid" | tr -d ' ')
+          echo "process owner: $owner"
+          test "$owner" = "gophish"
+          test "$(systemctl show -p NoNewPrivileges --value gophish)" = "yes"
+          test "$(systemctl show -p ProtectSystem --value gophish)" = "strict"
+
+      - name: The admin interface answers, over TLS, on loopback only
+        run: |
+          set -euo pipefail
+          code=$(curl -sk -o /tmp/login.html -w '%{http_code}' https://127.0.0.1:3333/login)
+          echo "GET /login -> $code"
+          test "$code" = "200"
+          grep -q 'csrf_token' /tmp/login.html
+          # Nothing should be listening on a routable address.
+          ss -ltnp | grep -E ':3333|:8080' || true
+          ss -ltn | awk '{print $4}' | grep -E '^(0\.0\.0\.0|\[::\]):(3333|8080)$' \
+            && { echo "::error::gophish is listening on a public address"; exit 1; }
+          echo "both listeners are loopback-bound"
+
+      # A release zip ships a config.json with the phishing server on
+      # 0.0.0.0:80. If the installer ever lets that reach the install directory
+      # the service either fails to bind or, worse, comes up listening on a
+      # public address with none of the configured settings.
+      - name: The packaged default config did not win
+        run: |
+          set -euo pipefail
+          listen=$(sudo python3 -c "import json;print(json.load(open('/opt/gophish/config.json'))['phish_server']['listen_url'])")
+          echo "phish_server.listen_url = $listen"
+          test "$listen" = "127.0.0.1:8080"
+          sudo journalctl -u gophish --no-pager | grep -q 'Starting phishing server at http://127.0.0.1:8080'
+          echo "the generated configuration is the one in effect"
+
+      - name: Hostname resolution works under the systemd sandbox
+        run: |
+          set -euo pipefail
+          # The unit restricts address families. Built with cgo, Go may use the
+          # system resolver over a unix socket, so AF_UNIX has to be allowed or
+          # SMTP and IMAP hostname lookups fail at campaign time.
+          #
+          # systemd-run has to be invoked as root with -p User=, not through
+          # sudo -u: a system account has no session bus and polkit then asks
+          # for interactive authentication.
+          sudo systemd-run --quiet --pipe --wait \
+            -p User=gophish \
+            -p RestrictAddressFamilies="AF_UNIX AF_INET AF_INET6" \
+            -p NoNewPrivileges=true \
+            getent hosts github.com
+          echo "resolution works with the same restrictions the unit applies"
+
+          # And prove the restriction is the thing that matters: without
+          # AF_UNIX the same lookup should not succeed the same way.
+          if sudo systemd-run --quiet --pipe --wait \
+               -p User=gophish \
+               -p RestrictAddressFamilies="AF_INET AF_INET6" \
+               getent hosts github.com >/dev/null 2>&1; then
+            echo "note: resolution also worked without AF_UNIX on this host"
+          else
+            echo "confirmed: dropping AF_UNIX breaks resolution"
+          fi
+
+      - name: The phishing server answers
+        run: |
+          set -euo pipefail
+          # No rid parameter, so a 404 is the correct response.
+          code=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8080/)
+          echo "GET / -> $code"
+          test "$code" = "404"
+          curl -s http://127.0.0.1:8080/robots.txt | grep -q 'Disallow: /'
+          # The tracking endpoints exist and reject a request with no recipient.
+          for path in /track /track/attachment /report; do
+            c=$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:8080$path")
+            echo "GET $path -> $c"
+            test "$c" = "404"
+          done
+
+      - name: The generated configuration is sane
+        run: |
+          set -euo pipefail
+          sudo cat /opt/gophish/config.json
+          key=$(sudo python3 -c "import json;print(json.load(open('/opt/gophish/config.json'))['admin_server']['csrf_key'])")
+          test -n "$key"
+          test "${#key}" -eq 64
+          echo "csrf_key is a fixed 32-byte value, so restarts will not invalidate sessions"
+          sudo python3 - <<'PY'
+          import json, sys
+          c = json.load(open('/opt/gophish/config.json'))
+          assert c['db_name'] == 'sqlite3', c['db_name']
+          assert c['admin_server']['trusted_origins'] == ['admin.example.test']
+          assert c['admin_server']['use_tls'] is True, 'admin TLS keeps the session cookie Secure'
+          assert c['phish_server']['listen_url'].startswith('127.0.0.1:')
+          assert c['contact_address'] == 'security@example.test'
+          print('configuration checks passed')
+          PY
+          sudo test -f /opt/gophish/gophish.db
+          sudo test -f /opt/gophish/gophish_admin.crt
+          echo "SQLite database and self-signed admin certificate were created"
+
+      - name: File permissions
+        run: |
+          set -euo pipefail
+          test "$(stat -c '%U %a' /opt/gophish/config.json)" = "gophish 640"
+          test "$(stat -c '%U' /opt/gophish/gophish.db)" = "gophish"
+          echo "config.json is not world readable"
+
+      # Re-running the installer is how an upgrade is applied, so the database
+      # and the configuration have to come through untouched.
+      - name: Upgrading in place keeps the database and the config
+        run: |
+          set -euo pipefail
+          sudo apt-get install -y -qq sqlite3 >/dev/null
+          sudo systemctl stop gophish
+          q() { sudo sqlite3 /opt/gophish/gophish.db "$1"; }
+
+          # Byte comparison of the database would be wrong: gophish rewrites
+          # the admin user's temporary password on every start until someone
+          # actually changes it, so the file legitimately differs after a
+          # restart. Assert the data survived instead.
+          q "INSERT INTO groups (user_id, name, modified_date) VALUES (1, 'upgrade-sentinel', datetime('now'));"
+          sentinel_before=$(q "SELECT COUNT(*) FROM groups WHERE name = 'upgrade-sentinel';")
+          apikey_before=$(q "SELECT api_key FROM users WHERE username = 'admin';")
+          test "$sentinel_before" = "1"
+          test -n "$apikey_before"
+
+          # An operator edit to config.json that must survive.
+          cfg_before=$(sudo sha256sum /opt/gophish/config.json | cut -d' ' -f1)
+          sudo python3 - <<'PY'
+          import json
+          p = '/opt/gophish/config.json'
+          c = json.load(open(p))
+          c['logging']['level'] = 'debug'
+          json.dump(c, open(p, 'w'), indent=4)
+          PY
+          cfg_edited=$(sudo sha256sum /opt/gophish/config.json | cut -d' ' -f1)
+          test "$cfg_edited" != "$cfg_before"
+
+          sudo ./deploy/install.sh --package out/gophish-test-linux-64bit.zip
+
+          sentinel_after=$(q "SELECT COUNT(*) FROM groups WHERE name = 'upgrade-sentinel';")
+          apikey_after=$(q "SELECT api_key FROM users WHERE username = 'admin';")
+          cfg_after=$(sudo sha256sum /opt/gophish/config.json | cut -d' ' -f1)
+
+          echo "sentinel row : $sentinel_before -> $sentinel_after"
+          echo "admin api key: unchanged=$([ "$apikey_after" = "$apikey_before" ] && echo yes || echo no)"
+          echo "config sha   : $cfg_edited -> $cfg_after"
+
+          test "$sentinel_after" = "1" \
+            || { echo "::error::the upgrade lost data from the database"; exit 1; }
+          test "$apikey_after" = "$apikey_before" \
+            || { echo "::error::the upgrade replaced the users table"; exit 1; }
+          test "$cfg_after" = "$cfg_edited" \
+            || { echo "::error::the upgrade overwrote config.json"; exit 1; }
+
+          systemctl is-active --quiet gophish
+          sudo python3 -c "import json;assert json.load(open('/opt/gophish/config.json'))['logging']['level']=='debug'"
+          echo "upgrade preserved the data and the edited config, and the service came back up"
+
+      - name: The nginx example is valid
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq && sudo apt-get install -y -qq nginx >/dev/null
+          # Self-signed certs at the paths the example expects, so nginx -t can
+          # actually parse and load the configuration.
+          for host in phish.example.com admin.example.com; do
+            sudo mkdir -p "/etc/letsencrypt/live/$host"
+            sudo openssl req -x509 -newkey rsa:2048 -nodes -days 1 \
+              -subj "/CN=$host" \
+              -keyout "/etc/letsencrypt/live/$host/privkey.pem" \
+              -out    "/etc/letsencrypt/live/$host/fullchain.pem" 2>/dev/null
+          done
+          sudo cp deploy/nginx.conf.example /etc/nginx/sites-available/phish_wu
+          sudo ln -sf /etc/nginx/sites-available/phish_wu /etc/nginx/sites-enabled/phish_wu
+          sudo rm -f /etc/nginx/sites-enabled/default
+          sudo nginx -t
+
+      - name: Diagnostics on failure
+        if: failure()
+        run: |
+          sudo systemctl status gophish --no-pager || true
+          sudo journalctl -u gophish --no-pager -n 100 || true
+          sudo ls -la /opt/gophish || true
