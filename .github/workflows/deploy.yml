@@ -110,11 +110,27 @@ jobs:
           # The unit restricts address families. Built with cgo, Go may use the
           # system resolver over a unix socket, so AF_UNIX has to be allowed or
           # SMTP and IMAP hostname lookups fail at campaign time.
-          sudo -u gophish systemd-run --quiet --pipe --wait \
+          #
+          # systemd-run has to be invoked as root with -p User=, not through
+          # sudo -u: a system account has no session bus and polkit then asks
+          # for interactive authentication.
+          sudo systemd-run --quiet --pipe --wait \
+            -p User=gophish \
             -p RestrictAddressFamilies="AF_UNIX AF_INET AF_INET6" \
             -p NoNewPrivileges=true \
             getent hosts github.com
           echo "resolution works with the same restrictions the unit applies"
+
+          # And prove the restriction is the thing that matters: without
+          # AF_UNIX the same lookup should not succeed the same way.
+          if sudo systemd-run --quiet --pipe --wait \
+               -p User=gophish \
+               -p RestrictAddressFamilies="AF_INET AF_INET6" \
+               getent hosts github.com >/dev/null 2>&1; then
+            echo "note: resolution also worked without AF_UNIX on this host"
+          else
+            echo "confirmed: dropping AF_UNIX breaks resolution"
+          fi
 
       - name: The phishing server answers
         run: |
