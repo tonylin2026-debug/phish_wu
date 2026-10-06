@@ -82,6 +82,45 @@ func generateSecureKey() string {
 	return fmt.Sprintf("%x", k)
 }
 
+// mysqlRelaxedZeroDateModes is the sql_mode gophish asks MySQL for when the
+// operator has not chosen one themselves.
+//
+// It is MySQL 8's own default with NO_ZERO_DATE and NO_ZERO_IN_DATE removed and
+// nothing else changed. STRICT_TRANS_TABLES in particular is kept, so bad data
+// is still rejected.
+//
+// gophish uses the zero time.Time to mean "this has not happened yet":
+// User.LastLogin before the first login, Campaign.CompletedDate until a
+// campaign finishes, Campaign.SendByDate when no send window was given, and
+// IMAP.LastLogin before the first poll. Those serialise to '0000-00-00', which
+// MySQL 8 rejects by default. With stock MySQL 8 settings that means gophish
+// cannot create its own admin user on first run, and cannot create a campaign.
+const mysqlRelaxedZeroDateModes = "'ONLY_FULL_GROUP_BY,STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION'"
+
+// resolveDSN returns the connection string gophish should actually connect
+// with, which may differ from the one in config.json.
+//
+// For MySQL it adds the sql_mode above unless the operator already specified
+// sql_mode in their DSN, in which case their choice is left completely alone.
+// Other drivers are returned untouched.
+func resolveDSN(driver, dsn string) (string, error) {
+	if driver != "mysql" {
+		return dsn, nil
+	}
+	cfg, err := mysql.ParseDSN(dsn)
+	if err != nil {
+		return "", fmt.Errorf("unable to parse the MySQL connection string: %v", err)
+	}
+	if cfg.Params == nil {
+		cfg.Params = map[string]string{}
+	}
+	if _, ok := cfg.Params["sql_mode"]; ok {
+		return dsn, nil
+	}
+	cfg.Params["sql_mode"] = mysqlRelaxedZeroDateModes
+	return cfg.FormatDSN(), nil
+}
+
 func chooseDBDriver(name, openStr string) goose.DBDriver {
 	d := goose.DBDriver{Name: name, OpenStr: openStr}
 
@@ -134,11 +173,19 @@ func createTemporaryPassword(u *User) error {
 func Setup(c *config.Config) error {
 	// Setup the package-scoped config
 	conf = c
+	// The connection string we actually dial with may carry defaults the
+	// operator did not have to spell out - see resolveDSN. Both goose and gorm
+	// have to use the same one.
+	dsn, err := resolveDSN(conf.DBName, conf.DBPath)
+	if err != nil {
+		log.Error(err)
+		return err
+	}
 	// Setup the goose configuration
 	migrateConf := &goose.DBConf{
 		MigrationsDir: conf.MigrationsPath,
 		Env:           "production",
-		Driver:        chooseDBDriver(conf.DBName, conf.DBPath),
+		Driver:        chooseDBDriver(conf.DBName, dsn),
 	}
 	// Get the latest possible migration
 	latest, err := goose.GetMostRecentDBVersion(migrateConf.MigrationsDir)
@@ -173,7 +220,7 @@ func Setup(c *config.Config) error {
 	// Open our database connection
 	i := 0
 	for {
-		db, err = gorm.Open(conf.DBName, conf.DBPath)
+		db, err = gorm.Open(conf.DBName, dsn)
 		if err == nil {
 			break
 		}

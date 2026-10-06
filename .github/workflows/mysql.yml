@@ -1,0 +1,262 @@
+name: MySQL migrations
+
+# The repository carries two parallel migration sets, db/db_sqlite3 and
+# db/db_mysql, and every existing check only ever exercises the sqlite3 one.
+# A broken statement in the MySQL set would not surface until someone pointed
+# a real deployment at MySQL. This runs the whole chain against a real server.
+
+on:
+  - pull_request
+  - push
+
+jobs:
+  migrate:
+    name: Apply migrations to MySQL
+    runs-on: ubuntu-latest
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: gophish
+          MYSQL_DATABASE: gophish
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -pgophish"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+
+      - name: Ensure a mysql client is available
+        run: command -v mysql || (sudo apt-get update && sudo apt-get install -y mysql-client)
+
+      - name: Build
+        run: go build -o gophish .
+
+      # If the server were not in its strict default mode, the rest of this job
+      # would pass for the wrong reason.
+      - name: Confirm the server really is in MySQL 8 strict mode
+        run: |
+          set -euo pipefail
+          mode=$(mysql -h 127.0.0.1 -P 3306 -uroot -pgophish --batch --skip-column-names \
+                   -e "SELECT @@GLOBAL.sql_mode;")
+          echo "server sql_mode: $mode"
+          case "$mode" in
+            *NO_ZERO_DATE*) echo "NO_ZERO_DATE is active, zero dates will be rejected by default" ;;
+            *) echo "::error::server is not enforcing NO_ZERO_DATE; this job would prove nothing"; exit 1 ;;
+          esac
+
+      # Deliberately a stock connection string with no sql_mode of its own.
+      # gophish writes the zero time.Time for timestamps that have not happened
+      # yet, which MySQL 8 rejects under its default NO_ZERO_DATE, so this also
+      # covers resolveDSN() supplying a workable sql_mode on the operator's
+      # behalf. If that regresses, startup fails here.
+      - name: Point the config at MySQL
+        run: |
+          cat > config.json <<'EOF'
+          {
+            "admin_server": {
+              "listen_url": "127.0.0.1:3333",
+              "use_tls": false,
+              "cert_path": "gophish_admin.crt",
+              "key_path": "gophish_admin.key"
+            },
+            "phish_server": {
+              "listen_url": "127.0.0.1:8080",
+              "use_tls": false,
+              "cert_path": "example.crt",
+              "key_path": "example.key"
+            },
+            "db_name": "mysql",
+            "db_path": "root:gophish@(127.0.0.1:3306)/gophish?charset=utf8&parseTime=True&loc=Local",
+            "migrations_prefix": "db/db_",
+            "contact_address": "",
+            "logging": { "filename": "", "level": "" }
+          }
+          EOF
+          cat config.json
+
+      - name: Run the migrations
+        run: |
+          set -o pipefail
+          # models.Setup() applies the goose migrations during startup and
+          # log.Fatal's if any of them fail, so starting the binary is enough
+          # to exercise the whole chain.
+          ./gophish > gophish.log 2>&1 &
+          PID=$!
+          for i in $(seq 1 90); do
+            if ! kill -0 "$PID" 2>/dev/null; then
+              echo "::error::gophish exited during startup"
+              cat gophish.log
+              exit 1
+            fi
+            if grep -q "Starting phishing server" gophish.log; then
+              echo "migrations completed, servers came up"
+              break
+            fi
+            sleep 1
+          done
+          kill "$PID" 2>/dev/null || true
+          wait "$PID" 2>/dev/null || true
+          echo "----- gophish output -----"
+          cat gophish.log
+          grep -q "Starting phishing server" gophish.log
+
+          # Every migration must report OK, and none may be skipped.
+          if grep -qiE "^(FAIL|ERROR)" gophish.log; then
+            echo "::error::a migration reported a failure"
+            exit 1
+          fi
+          applied=$(grep -c "^OK    " gophish.log)
+          onDisk=$(ls db/db_mysql/migrations/*.sql | wc -l)
+          echo "migrations reported OK: $applied, files on disk: $onDisk"
+          test "$applied" = "$onDisk"
+
+      - name: Assert the schema the migrations were supposed to produce
+        run: |
+          set -euo pipefail
+          q() { mysql -h 127.0.0.1 -P 3306 -uroot -pgophish --batch --skip-column-names -e "$1" gophish; }
+
+          echo "--- goose version ---"
+          applied=$(q "SELECT MAX(version_id) FROM goose_db_version WHERE is_applied = 1;")
+          echo "latest applied migration: $applied"
+          test "$applied" = "20261006120000"
+
+          echo "--- independent action columns on results ---"
+          cols=$(q "SELECT COUNT(*) FROM information_schema.COLUMNS
+                     WHERE TABLE_SCHEMA = 'gophish' AND TABLE_NAME = 'results'
+                       AND COLUMN_NAME IN ('email_opened','attachment_opened','clicked_link','submitted_data');")
+          echo "found $cols of 4"
+          test "$cols" = "4"
+
+          echo "--- indexes ---"
+          idx=$(q "SELECT COUNT(DISTINCT INDEX_NAME) FROM information_schema.STATISTICS
+                    WHERE TABLE_SCHEMA = 'gophish'
+                      AND INDEX_NAME IN ('idx_results_r_id','idx_results_campaign_id','idx_events_campaign_message');")
+          echo "found $idx of 3"
+          test "$idx" = "3"
+
+          echo "--- every migration in db/db_mysql applied ---"
+          onDisk=$(ls db/db_mysql/migrations/*.sql | wc -l)
+          inDb=$(q "SELECT COUNT(*) FROM goose_db_version WHERE is_applied = 1 AND version_id > 0;")
+          echo "on disk: $onDisk, applied: $inDb"
+          test "$onDisk" = "$inDb"
+
+          echo "--- results columns ---"
+          q "SELECT COLUMN_NAME, COLUMN_TYPE FROM information_schema.COLUMNS
+              WHERE TABLE_SCHEMA = 'gophish' AND TABLE_NAME = 'results' ORDER BY ORDINAL_POSITION;"
+
+      # Creating a campaign is the other place a zero time.Time reaches MySQL:
+      # PostCampaign sets CompletedDate to time.Time{} outright, and SendByDate
+      # stays zero when no send window is given. Startup alone would not catch
+      # a regression there.
+      - name: Create a campaign through the API
+        run: |
+          set -euo pipefail
+          ./gophish > api.log 2>&1 &
+          PID=$!
+          trap 'kill "$PID" 2>/dev/null || true' EXIT
+          for i in $(seq 1 90); do
+            if grep -q "Starting admin server" api.log; then break; fi
+            if ! kill -0 "$PID" 2>/dev/null; then cat api.log; exit 1; fi
+            sleep 1
+          done
+
+          key=$(mysql -h 127.0.0.1 -P 3306 -uroot -pgophish --batch --skip-column-names \
+                  -e "SELECT api_key FROM users WHERE username = 'admin';" gophish)
+          api() {
+            curl -sS -o /tmp/resp -w '%{http_code}' -X POST \
+              -H "Authorization: Bearer $key" -H 'Content-Type: application/json' \
+              -d "$2" "http://127.0.0.1:3333/api/$1"
+          }
+          expect201() {
+            code=$(api "$1" "$2")
+            if [ "$code" != "201" ] && [ "$code" != "200" ]; then
+              echo "::error::POST /api/$1 returned $code"
+              cat /tmp/resp; echo; cat api.log
+              exit 1
+            fi
+          }
+
+          expect201 "groups/"    '{"name":"smoke","targets":[{"email":"a@example.com","first_name":"A","last_name":"B"}]}'
+          expect201 "templates/" '{"name":"smoke","subject":"s","text":"t","html":"<html>{{.Tracker}}</html>"}'
+          expect201 "pages/"     '{"name":"smoke","html":"<html>x</html>"}'
+          expect201 "smtp/"      '{"name":"smoke","host":"localhost:25","from_address":"a@example.com","interface_type":"SMTP"}'
+          expect201 "campaigns/" '{"name":"smoke","template":{"name":"smoke"},"page":{"name":"smoke"},"smtp":{"name":"smoke"},"groups":[{"name":"smoke"}],"url":"http://127.0.0.1:8080"}'
+
+          echo "--- the zero-valued timestamps as stored ---"
+          mysql -h 127.0.0.1 -P 3306 -uroot -pgophish --batch \
+            -e "SELECT name, launch_date, completed_date, send_by_date FROM campaigns;" gophish
+          echo "campaign created on stock MySQL 8"
+
+      - name: Check the backfill runs against existing data
+        run: |
+          set -euo pipefail
+          q() { mysql -h 127.0.0.1 -P 3306 -uroot -pgophish --batch --skip-column-names -e "$1" gophish; }
+
+          # The migration backfills the new flags from the event log. Rebuild a
+          # pre-migration database with representative rows, re-run the chain
+          # and confirm the historical results are classified correctly.
+          mysql -h 127.0.0.1 -P 3306 -uroot -pgophish -e "DROP DATABASE gophish; CREATE DATABASE gophish;"
+
+          # Apply everything except the new migration by temporarily moving it.
+          mkdir -p /tmp/held
+          mv db/db_mysql/migrations/20261006120000_independent_action_tracking.sql /tmp/held/
+          ./gophish > pre.log 2>&1 &
+          PID=$!
+          for i in $(seq 1 90); do
+            if grep -q "Starting phishing server" pre.log; then break; fi
+            if ! kill -0 "$PID" 2>/dev/null; then cat pre.log; exit 1; fi
+            sleep 1
+          done
+          kill "$PID" 2>/dev/null || true
+          wait "$PID" 2>/dev/null || true
+
+          # One campaign, four recipients, each having done something different.
+          mysql -h 127.0.0.1 -P 3306 -uroot -pgophish gophish <<'SQL'
+          INSERT INTO campaigns (id, user_id, name, status) VALUES (1, 1, 'backfill', 'In progress');
+          INSERT INTO results (campaign_id, user_id, r_id, email, status, reported) VALUES
+            (1, 1, 'aaaaaaa', 'opened@example.com',     'Email Opened',   0),
+            (1, 1, 'bbbbbbb', 'clicked@example.com',    'Clicked Link',   0),
+            (1, 1, 'ccccccc', 'submitted@example.com',  'Submitted Data', 0),
+            (1, 1, 'ddddddd', 'attachment@example.com', 'Email Sent',     0);
+          INSERT INTO events (campaign_id, email, message) VALUES
+            (1, 'attachment@example.com', 'Attachment Opened');
+          SQL
+
+          mv /tmp/held/20261006120000_independent_action_tracking.sql db/db_mysql/migrations/
+          ./gophish > post.log 2>&1 &
+          PID=$!
+          for i in $(seq 1 90); do
+            if grep -q "Starting phishing server" post.log; then break; fi
+            if ! kill -0 "$PID" 2>/dev/null; then cat post.log; exit 1; fi
+            sleep 1
+          done
+          kill "$PID" 2>/dev/null || true
+          wait "$PID" 2>/dev/null || true
+
+          echo "--- backfilled flags ---"
+          q "SELECT email, email_opened, attachment_opened, clicked_link, submitted_data
+               FROM results WHERE campaign_id = 1 ORDER BY r_id;"
+
+          # opened@      : status Email Opened   -> email_opened only
+          # clicked@     : status Clicked Link   -> clicked_link only
+          # submitted@   : status Submitted Data -> submitted_data AND clicked_link
+          # attachment@  : event Attachment Opened -> attachment_opened only
+          test "$(q "SELECT email_opened FROM results WHERE r_id='aaaaaaa';")" = "1"
+          test "$(q "SELECT clicked_link FROM results WHERE r_id='bbbbbbb';")" = "1"
+          test "$(q "SELECT submitted_data FROM results WHERE r_id='ccccccc';")" = "1"
+          test "$(q "SELECT clicked_link FROM results WHERE r_id='ccccccc';")" = "1"
+          test "$(q "SELECT attachment_opened FROM results WHERE r_id='ddddddd';")" = "1"
+          test "$(q "SELECT email_opened FROM results WHERE r_id='ddddddd';")" = "0"
+          echo "backfill classified every row correctly"
