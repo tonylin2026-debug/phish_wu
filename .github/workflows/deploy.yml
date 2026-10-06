@@ -181,11 +181,22 @@ jobs:
       - name: Upgrading in place keeps the database and the config
         run: |
           set -euo pipefail
+          sudo apt-get install -y -qq sqlite3 >/dev/null
           sudo systemctl stop gophish
-          db_before=$(sudo sha256sum /opt/gophish/gophish.db | cut -d' ' -f1)
-          cfg_before=$(sudo sha256sum /opt/gophish/config.json | cut -d' ' -f1)
+          q() { sudo sqlite3 /opt/gophish/gophish.db "$1"; }
 
-          # An operator edit that must survive.
+          # Byte comparison of the database would be wrong: gophish rewrites
+          # the admin user's temporary password on every start until someone
+          # actually changes it, so the file legitimately differs after a
+          # restart. Assert the data survived instead.
+          q "INSERT INTO groups (user_id, name, modified_date) VALUES (1, 'upgrade-sentinel', datetime('now'));"
+          sentinel_before=$(q "SELECT COUNT(*) FROM groups WHERE name = 'upgrade-sentinel';")
+          apikey_before=$(q "SELECT api_key FROM users WHERE username = 'admin';")
+          test "$sentinel_before" = "1"
+          test -n "$apikey_before"
+
+          # An operator edit to config.json that must survive.
+          cfg_before=$(sudo sha256sum /opt/gophish/config.json | cut -d' ' -f1)
           sudo python3 - <<'PY'
           import json
           p = '/opt/gophish/config.json'
@@ -198,16 +209,24 @@ jobs:
 
           sudo ./deploy/install.sh --package out/gophish-test-linux-64bit.zip
 
-          db_after=$(sudo sha256sum /opt/gophish/gophish.db | cut -d' ' -f1)
+          sentinel_after=$(q "SELECT COUNT(*) FROM groups WHERE name = 'upgrade-sentinel';")
+          apikey_after=$(q "SELECT api_key FROM users WHERE username = 'admin';")
           cfg_after=$(sudo sha256sum /opt/gophish/config.json | cut -d' ' -f1)
-          echo "db  $db_before -> $db_after"
-          echo "cfg $cfg_edited -> $cfg_after"
-          test "$db_after" = "$db_before"   || { echo "::error::the database was modified by the upgrade"; exit 1; }
-          test "$cfg_after" = "$cfg_edited" || { echo "::error::the upgrade overwrote config.json"; exit 1; }
+
+          echo "sentinel row : $sentinel_before -> $sentinel_after"
+          echo "admin api key: unchanged=$([ "$apikey_after" = "$apikey_before" ] && echo yes || echo no)"
+          echo "config sha   : $cfg_edited -> $cfg_after"
+
+          test "$sentinel_after" = "1" \
+            || { echo "::error::the upgrade lost data from the database"; exit 1; }
+          test "$apikey_after" = "$apikey_before" \
+            || { echo "::error::the upgrade replaced the users table"; exit 1; }
+          test "$cfg_after" = "$cfg_edited" \
+            || { echo "::error::the upgrade overwrote config.json"; exit 1; }
 
           systemctl is-active --quiet gophish
           sudo python3 -c "import json;assert json.load(open('/opt/gophish/config.json'))['logging']['level']=='debug'"
-          echo "upgrade preserved both, and the service came back up"
+          echo "upgrade preserved the data and the edited config, and the service came back up"
 
       - name: The nginx example is valid
         run: |
