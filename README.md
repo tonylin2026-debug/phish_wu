@@ -313,24 +313,75 @@ export GOPHISH_INITIAL_ADMIN_API_TOKEN='自訂的 API token'
 
 ## 正式部署
 
-### 目錄配置
+### 建議作法：`deploy/install.sh`
+
+Ubuntu 上直接用內附的安裝腳本。它會建立系統使用者、安裝到 `/opt/gophish`、產生設定檔、安裝已加固的 systemd unit 並啟動服務：
 
 ```bash
-sudo useradd -r -m -d /opt/gophish -s /bin/bash gophish
+curl -fsSLO https://raw.githubusercontent.com/tonylin2026-debug/phish_wu/master/deploy/install.sh
+chmod +x install.sh
+sudo ./install.sh --release latest \
+     --admin-domain admin.example.com \
+     --contact-address security@example.com
+```
+
+也可以指定本機的 zip：`--package ./gophish-v0.12.1-linux-64bit.zip`。
+
+**這個腳本會在每次推送時於真實的 Ubuntu runner 上被完整執行驗證**（`Ubuntu deployment` workflow）：服務以非 root 身分啟動、兩個監聽埠都只綁 loopback、管理介面回應登入頁、釣魚伺服器的四個端點正常、設定檔逐欄檢查、檔案權限檢查，並實際跑一次升級確認資料與設定都沒被覆蓋。
+
+它採用的拓樸是：
+
+```
+nginx :443 ──► 127.0.0.1:3333   管理介面（TLS、自簽、僅 loopback）
+      :443 ──► 127.0.0.1:8080   釣魚伺服器（HTTP、僅 loopback）
+```
+
+gophish 只綁非特權的 loopback 埠，所以**不需要 root，也不需要 `setcap`**——由 nginx 負責 80/443。
+
+#### 升級
+
+重跑同一個指令即可。`gophish.db`、`config.json`（含你的手動編輯）與自動產生的管理介面憑證都會保留：
+
+```bash
+sudo ./install.sh --release latest
+```
+
+#### 腳本參數
+
+| 參數 | 說明 |
+|---|---|
+| `--release <tag\|latest>` | 從本專案的 GitHub Release 下載 |
+| `--package <path\|url>` | 改用指定的 zip |
+| `--admin-domain <host>` | 管理介面網域，會寫入 `trusted_origins` |
+| `--contact-address <mail>` | 演練聯絡信箱 |
+| `--install-dir <path>` | 預設 `/opt/gophish` |
+| `--user <name>` | 預設 `gophish` |
+| `--admin-listen <ip:port>` | 預設 `127.0.0.1:3333` |
+| `--phish-listen <ip:port>` | 預設 `127.0.0.1:8080` |
+| `--no-start` | 只安裝不啟動 |
+
+---
+
+以下是手動部署的細節，若你用上面的腳本就不需要自己做。
+
+### 手動：目錄配置
+
+```bash
+sudo useradd -r -m -d /opt/gophish -s /usr/sbin/nologin gophish
 sudo -u gophish mkdir -p /opt/gophish
 # 將執行檔與上述「執行時需要的檔案」全部放入 /opt/gophish
 sudo chown -R gophish:gophish /opt/gophish
 ```
 
-### 綁定 80／443 連接埠
+### 手動：若要讓 gophish 直接綁 80／443
 
-不要用 root 執行。改用 capability：
+只有在不使用反向代理時才需要。不要用 root 執行，改用 capability：
 
 ```bash
 sudo setcap 'cap_net_bind_service=+ep' /opt/gophish/gophish
 ```
 
-> 每次替換執行檔後都要重新執行，capability 會隨檔案被覆寫而消失。
+> 每次替換執行檔後都要重新執行，capability 會隨檔案被覆寫而消失。這也是建議改用 nginx 的原因之一。
 
 ### systemd
 
@@ -458,14 +509,17 @@ docker run -d --name phish_wu \
 
 ### Ansible
 
-`ansible-playbook/` 內含一份針對 Ubuntu 的部署腳本，會一併安裝 Postfix（只聽 localhost）與 nginx。使用前請編輯 `hosts` 與 `roles/gophish/vars/main.yml`：
+多台主機時使用。這個 role 很薄——它把 `deploy/install.sh` 複製到目標主機並執行，所以安裝邏輯只有一份，而且是被 CI 測過的那一份。另外負責防火牆規則與 nginx 設定。
 
 ```bash
+ansible-galaxy collection install community.general
+
 cd ansible-playbook
-ansible-playbook site.yml -i hosts -u ubuntu --become --ask-become-pass
+# 編輯 hosts 與 roles/gophish/vars/main.yml
+ansible-playbook site.yml -i hosts -u ubuntu --become --private-key=~/.ssh/id_ed25519
 ```
 
-> 該腳本會從**上游 gophish** 下載最新 release，不會使用本分支的建置結果。若要部署本分支，請自行修改 `roles/gophish/tasks/main.yml` 的下載步驟。
+詳見 [ansible-playbook/README.md](ansible-playbook/README.md)。
 
 ### 多機部署
 
@@ -744,6 +798,8 @@ go test -race -count=1 ./models/... ./controllers/...
 |---|---|
 | `CI` | Go 1.21 / 1.22 / 1.23 的建置、`gofmt` 檢查、完整測試、race detector |
 | `MySQL migrations` | 於真實 `mysql:8.0` 容器套用全部 migration、驗證 schema、透過 API 建立活動、驗證歷史資料回填 |
+| `Ubuntu deployment` | 在真實 Ubuntu runner 上執行 `deploy/install.sh`：shellcheck、systemd 服務啟動、非 root 身分、loopback 綁定、各端點回應、設定與權限檢查、就地升級、`nginx -t` 驗證範本 |
+| `Build Gophish Release` | 建立 GitHub Release 時觸發，產出 Windows / Linux / macOS 的 zip |
 
 ### 只跑三動作追蹤的測試
 
