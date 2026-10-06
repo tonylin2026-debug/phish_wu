@@ -151,11 +151,19 @@ jobs:
                 TAG: ${{ env.TAG }}
               run: |
                 set -euo pipefail
-                attached=$(gh release view "$TAG" --repo "${{ github.repository }}" \
-                             --json assets -q '.assets | length')
-                built=$(ls releases/*.zip | wc -l)
-                echo "built $built archives, $attached attached"
-                test "$attached" = "$built"
+                gh release view "$TAG" --repo "${{ github.repository }}" \
+                  --json assets -q '.assets[].name' | sort > /tmp/attached.txt
+                for f in releases/*.zip; do basename "$f"; done | sort > /tmp/built.txt
+                echo "built:"; cat /tmp/built.txt
+                echo "attached:"; cat /tmp/attached.txt
+                # Every archive built must be attached. A release may also carry
+                # assets from an earlier run, which comm ignores: counting them
+                # would fail the step even though nothing is missing.
+                missing=$(comm -23 /tmp/built.txt /tmp/attached.txt)
+                if [ -n "$missing" ]; then
+                  echo "::error::these archives were not attached: $missing"
+                  exit 1
+                fi
             # This used to PATCH the release body with just the hash table,
             # which discarded whatever release notes had been written. Append
             # instead.

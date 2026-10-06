@@ -286,7 +286,7 @@ level=fatal msg="Error 1292: Incorrect datetime value: '0000-00-00' for column '
 啟動日誌會印出隨機產生的管理員臨時密碼：
 
 ```
-time="..." level=info msg="Please login with the username admin and the password 8ce31394652935bf"
+time="..." level=info msg="Please login with the username admin and the password REDACTED-SEE-YOUR-OWN-LOG"
 time="..." level=info msg="Starting admin server at https://127.0.0.1:3333"
 time="..." level=info msg="Starting phishing server at http://0.0.0.0:80"
 ```
@@ -515,7 +515,7 @@ docker run -d --name phish_wu \
 ansible-galaxy collection install community.general
 
 cd ansible-playbook
-# 編輯 hosts 與 roles/gophish/vars/main.yml
+# 編輯 hosts 與 roles/gophish/defaults/main.yml
 ansible-playbook site.yml -i hosts -u ubuntu --become --private-key=~/.ssh/id_ed25519
 ```
 

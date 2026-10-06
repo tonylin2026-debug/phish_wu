@@ -27,6 +27,10 @@ CONTACT_ADDRESS=""
 PACKAGE=""
 RELEASE=""
 START_SERVICE=1
+# Configuration flags only apply when config.json is generated. Remember
+# which ones were passed so a re-run can say that it ignored them instead of
+# silently dropping them.
+CONFIG_FLAGS=""
 
 say()  { printf '\033[1;34m==>\033[0m %s\n' "$*"; }
 warn() { printf '\033[1;33m[!]\033[0m %s\n' "$*" >&2; }
@@ -63,16 +67,24 @@ Example:
 USAGE
 }
 
+need_value() {
+    [ "$2" -ge 2 ] || die "$1 needs a value"
+}
+
+note_config_flag() {
+    CONFIG_FLAGS="$CONFIG_FLAGS $1 $2"
+}
+
 while [ $# -gt 0 ]; do
     case "$1" in
-        --package)         PACKAGE="$2"; shift 2 ;;
-        --release)         RELEASE="$2"; shift 2 ;;
-        --admin-domain)    ADMIN_DOMAIN="$2"; shift 2 ;;
-        --contact-address) CONTACT_ADDRESS="$2"; shift 2 ;;
-        --install-dir)     INSTALL_DIR="$2"; shift 2 ;;
-        --user)            SERVICE_USER="$2"; shift 2 ;;
-        --admin-listen)    ADMIN_LISTEN="$2"; shift 2 ;;
-        --phish-listen)    PHISH_LISTEN="$2"; shift 2 ;;
+        --package)         need_value --package $#; PACKAGE="$2"; shift 2 ;;
+        --release)         need_value --release $#; RELEASE="$2"; shift 2 ;;
+        --admin-domain)    need_value --admin-domain $#; ADMIN_DOMAIN="$2"; note_config_flag --admin-domain "$2"; shift 2 ;;
+        --contact-address) need_value --contact-address $#; CONTACT_ADDRESS="$2"; note_config_flag --contact-address "$2"; shift 2 ;;
+        --install-dir)     need_value --install-dir $#; INSTALL_DIR="$2"; shift 2 ;;
+        --user)            need_value --user $#; SERVICE_USER="$2"; shift 2 ;;
+        --admin-listen)    need_value --admin-listen $#; ADMIN_LISTEN="$2"; note_config_flag --admin-listen "$2"; shift 2 ;;
+        --phish-listen)    need_value --phish-listen $#; PHISH_LISTEN="$2"; note_config_flag --phish-listen "$2"; shift 2 ;;
         --no-start)        START_SERVICE=0; shift ;;
         -h|--help)         usage; exit 0 ;;
         *)                 usage >&2; die "unknown option: $1" ;;
@@ -181,8 +193,32 @@ cp -a "$WORK/unpacked/." "$INSTALL_DIR/"
 
 # ---------------------------------------------------------------- config ----
 
+# config_listen and config_tls read the running configuration without needing
+# a JSON parser on the host. Both the file this script writes and gophish's
+# own put listen_url and use_tls inside the named server object.
+config_listen() {
+    awk -v section="$1" '
+        $0 ~ section { found = 1 }
+        found && /listen_url/ { print; exit }
+    ' "$INSTALL_DIR/config.json" | cut -d'"' -f4
+}
+
+config_tls() {
+    awk -v section="$1" '
+        $0 ~ section { found = 1 }
+        found && /use_tls/ { print; exit }
+    ' "$INSTALL_DIR/config.json" | grep -q true
+}
+
 if [ -f "$INSTALL_DIR/config.json" ]; then
     say "Keeping the existing config.json"
+    if [ -n "$CONFIG_FLAGS" ]; then
+        warn "ignoring these options, because config.json already exists:"
+        warn "   $CONFIG_FLAGS"
+        warn "edit $INSTALL_DIR/config.json to change them, or delete it and"
+        warn "re-run to regenerate it - that also issues a new csrf_key, which"
+        warn "logs out every active session."
+    fi
 else
     say "Writing config.json"
 
@@ -288,10 +324,26 @@ fi
 say "Starting $SERVICE_NAME"
 systemctl restart "$SERVICE_NAME"
 
-ADMIN_PORT="${ADMIN_LISTEN##*:}"
-ADMIN_HOST="${ADMIN_LISTEN%:*}"
+# An upgrade keeps the existing config.json, which may listen somewhere other
+# than the defaults, or terminate TLS at the proxy. Probing the flags rather
+# than the configuration would mean probing an address nothing is listening on.
+EFFECTIVE_ADMIN="$(config_listen admin_server)"
+[ -n "$EFFECTIVE_ADMIN" ] || EFFECTIVE_ADMIN="$ADMIN_LISTEN"
+EFFECTIVE_PHISH="$(config_listen phish_server)"
+[ -n "$EFFECTIVE_PHISH" ] || EFFECTIVE_PHISH="$PHISH_LISTEN"
+
+ADMIN_PORT="${EFFECTIVE_ADMIN##*:}"
+ADMIN_HOST="${EFFECTIVE_ADMIN%:*}"
+# A listener bound to every address is reached over loopback.
+case "$ADMIN_HOST" in "" | "0.0.0.0" | "[::]") ADMIN_HOST="127.0.0.1" ;; esac
+ADMIN_SCHEME="http"
+if config_tls admin_server; then ADMIN_SCHEME="https"; fi
+ADMIN_PROBE="$ADMIN_SCHEME://$ADMIN_HOST:$ADMIN_PORT/login"
+
+READY=0
 for _ in $(seq 1 60); do
-    if curl -sk --max-time 2 "https://$ADMIN_HOST:$ADMIN_PORT/login" >/dev/null 2>&1; then
+    if curl -sk --max-time 2 "$ADMIN_PROBE" >/dev/null 2>&1; then
+        READY=1
         break
     fi
     if ! systemctl is-active --quiet "$SERVICE_NAME"; then
@@ -303,6 +355,14 @@ for _ in $(seq 1 60); do
 done
 
 systemctl is-active --quiet "$SERVICE_NAME" || die "the service is not running"
+# Running is not the same as serving. Without this the loop could fall
+# through having never got an answer and the script would still report
+# success and exit 0.
+if [ "$READY" -ne 1 ]; then
+    warn "the service is running but never answered on $ADMIN_PROBE:"
+    journalctl -u "$SERVICE_NAME" --no-pager -n 40 >&2
+    die "startup did not complete"
+fi
 say "Service is up"
 
 # ---------------------------------------------------------------- summary ---
@@ -311,8 +371,8 @@ echo
 echo "─────────────────────────────────────────────────────────────"
 echo " phish_wu $VERSION_STR installed in $INSTALL_DIR"
 echo
-echo "   admin interface : https://$ADMIN_LISTEN  (loopback only)"
-echo "   phishing server : http://$PHISH_LISTEN   (loopback only)"
+echo "   admin interface : $ADMIN_SCHEME://$EFFECTIVE_ADMIN"
+echo "   phishing server : http://$EFFECTIVE_PHISH"
 echo "   database        : $INSTALL_DIR/gophish.db  (SQLite)"
 echo "   service         : systemctl status $SERVICE_NAME"
 echo "   logs            : journalctl -u $SERVICE_NAME -f"

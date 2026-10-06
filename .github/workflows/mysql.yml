@@ -129,8 +129,12 @@ jobs:
 
           echo "--- goose version ---"
           applied=$(q "SELECT MAX(version_id) FROM goose_db_version WHERE is_applied = 1;")
-          echo "latest applied migration: $applied"
-          test "$applied" = "20261006120000"
+          # Compare against the newest migration on disk rather than a literal.
+          # Pinning the id here fails the day a migration is added, for a reason
+          # that has nothing to do with what this job is checking.
+          newest=$(basename -a db/db_mysql/migrations/*.sql | cut -d_ -f1 | sort -n | tail -1)
+          echo "latest applied migration: $applied (newest on disk: $newest)"
+          test "$applied" = "$newest"
 
           echo "--- independent action columns on results ---"
           cols=$(q "SELECT COUNT(*) FROM information_schema.COLUMNS
