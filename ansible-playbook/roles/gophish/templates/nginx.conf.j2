@@ -1,4 +1,4 @@
-{{ ansible_managed | comment }}
+﻿{{ ansible_managed | comment }}
 # Rendered from roles/gophish/templates/nginx.conf.j2
 # See deploy/nginx.conf.example for the annotated standalone version.
 
@@ -15,9 +15,8 @@ server {
 }
 
 server {
-    listen 443 ssl;
-    listen [::]:443 ssl;
-    http2 on;
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
     server_name {{ phish_domain }};
 
     ssl_certificate     {{ phish_cert_path }};
@@ -50,9 +49,8 @@ server {
 }
 
 server {
-    listen 443 ssl;
-    listen [::]:443 ssl;
-    http2 on;
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
     server_name {{ admin_domain }};
 
     ssl_certificate     {{ admin_cert_path }};
