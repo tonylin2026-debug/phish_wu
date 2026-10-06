@@ -363,6 +363,16 @@ if [ "$READY" -ne 1 ]; then
     journalctl -u "$SERVICE_NAME" --no-pager -n 40 >&2
     die "startup did not complete"
 fi
+# gophish generates the self-signed admin certificate on first start, with
+# whatever the umask allows - the CI run showed the pair landing world
+# readable and writable. It only generates them when they are missing, so
+# tightening them once is enough.
+for f in gophish_admin.key gophish_admin.crt; do
+    [ -f "$INSTALL_DIR/$f" ] || continue
+    chown "$SERVICE_USER:$SERVICE_USER" "$INSTALL_DIR/$f"
+    chmod 600 "$INSTALL_DIR/$f"
+done
+
 say "Service is up"
 
 # ---------------------------------------------------------------- summary ---
