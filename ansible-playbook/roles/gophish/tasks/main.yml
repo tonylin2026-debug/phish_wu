@@ -1,226 +1,117 @@
-- name: Change /etc/hostname
-  hostname:
-    name: "{{ hostname }}"
+---
+# This role is deliberately thin. All of the install logic lives in
+# deploy/install.sh, which is exercised end to end by the "Ubuntu deployment"
+# workflow on every push. Reimplementing it here in Ansible would mean two
+# implementations that drift apart, with only one of them tested.
 
-- name: Ensure ufw is installed on the machine
-  package:
-    name: ufw
+- name: Install prerequisites
+  ansible.builtin.apt:
+    name: "{{ install_packages }}"
     state: present
+    update_cache: true
+    cache_valid_time: 3600
 
-- name: Allow TCP 22 for SSH.
-  ufw:
+- name: Set the hostname
+  ansible.builtin.hostname:
+    name: "{{ hostname }}"
+  when: hostname | length > 0
+
+# --------------------------------------------------------------- firewall ---
+
+- name: Allow SSH
+  community.general.ufw:
     rule: allow
     port: "22"
     proto: tcp
+    from_ip: "{{ ssh_allowed_from }}"
 
-- name: Allow TCP 80 for Gophish.
-  ufw:
+- name: Allow HTTP and HTTPS
+  community.general.ufw:
     rule: allow
-    port: "80"
+    port: "{{ item }}"
     proto: tcp
+  loop:
+    - "80"
+    - "443"
 
-- name: Allow TCP 443 for Gophish.
-  ufw:
-    rule: allow
-    port: "443"
-    proto: tcp
-
-- name: Enable ufw.
-  ufw:
+# gophish only binds loopback - nginx is what listens publicly - so there is
+# deliberately no rule for 3333 or 8080.
+- name: Enable the firewall, default deny
+  community.general.ufw:
     state: enabled
     policy: deny
   when: enable_ufw_firewall
 
-- name: Update APT package cache.
-  apt:
-    update_cache: yes
+# ---------------------------------------------------------------- install ---
 
-- name: Upgrade APT to the latest packages.
-  apt:
-    upgrade: safe
-
-- name: Ensure /etc/ssl/csr folder exists
-  file:
-    path: /etc/ssl/csr
-    state: directory
-    mode: "0755"
-
-- name: Ensure /etc/ssl/private folder exists
-  file:
-    path: /etc/ssl/private
-    state: directory
-    mode: "0755"
-
-- name: Ensure /etc/ssl/crt folder exists
-  file:
-    path: /etc/ssl/crt
-    state: directory
-    mode: "0755"
-
-- name: Install specified packages.
-  apt:
-    pkg: "{{ install_packages }}"
-    state: latest
-
-- name: adding existing user '{{ gophish_user }}' to group ssl-cert
-  user:
-    name: "{{ gophish_user }}"
-    groups: ssl-cert
-    append: yes
-
-- name: Ensure the cryptography Python package is installed
-  pip:
-    name: cryptography
-
-- name: Generate an OpenSSL private key with the default values (4096 bits, RSA)
-  openssl_privatekey:
-    path: "{{ gophish_ssl_cert_path }}"
-
-- name: Generate an OpenSSL Certificate Signing Request
-  openssl_csr:
-    path: "{{ gophish_csr_path }}"
-    privatekey_path: "{{ gophish_ssl_cert_path }}"
-    common_name: "{{ gophish_domain }}"
-
-- name: Generate a Self Signed OpenSSL certificate
-  openssl_certificate:
-    path: "{{ gophish_crt_path }}"
-    privatekey_path: "{{ gophish_ssl_cert_path }}"
-    csr_path: "{{ gophish_csr_path }}"
-    provider: selfsigned
-
-- name: Update postfix main.cf configuration file.
-  template:
-    src: main.cf.j2
-    dest: /etc/postfix/main.cf
-    backup: yes
+- name: Copy the installer onto the host
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/../deploy/install.sh"
+    dest: /usr/local/sbin/phish_wu-install.sh
     owner: root
     group: root
-    mode: 0644
+    mode: "0750"
 
-- name: Restart postfix.
-  service:
-    name: postfix
-    state: restarted
+- name: Install or upgrade phish_wu
+  ansible.builtin.command:
+    cmd: >-
+      /usr/local/sbin/phish_wu-install.sh
+      --release {{ phish_wu_release | quote }}
+      --install-dir {{ install_dir | quote }}
+      --user {{ gophish_user | quote }}
+      --admin-domain {{ admin_domain | quote }}
+      --contact-address {{ contact_address | quote }}
+  register: phish_wu_install
+  changed_when: true
+  notify: Restart gophish
 
-- name: Ensure postfix is started and enabled at boot.
-  service:
-    name: postfix
-    state: started
-    enabled: yes
+- name: Show the installer output
+  ansible.builtin.debug:
+    var: phish_wu_install.stdout_lines
 
-- name: get latest release info
-  uri:
-    url: "https://api.github.com/repos/gophish/gophish/releases/latest"
-    return_content: true
-  register: latest_json_reponse
+# ------------------------------------------------------------------ nginx ---
 
-- name: Download latest Gophish .zip file.
-  get_url:
-    validate_certs: True
-    url: "https://github.com/gophish/gophish/releases/download/{{ latest_json_reponse.json.tag_name }}/gophish-{{ latest_json_reponse.json.tag_name }}-linux-64bit.zip"
-    dest: "/home/{{ gophish_user }}/gophish.zip"
-    mode: 0755
-    owner: "{{ gophish_user }}"
-    group: "{{ gophish_user }}"
-
-- name: Ensure gophish user has permission for CRT file.
-  file:
-    path: "{{ gophish_crt_path }}"
-    mode: 0755
-    owner: "{{ gophish_user }}"
-    group: "{{ gophish_user }}"
-
-- name: Ensure gophish user has permission for SSL certificate.
-  file:
-    path: "{{ gophish_ssl_cert_path }}"
-    mode: 0755
-    owner: "{{ gophish_user }}"
-    group: "{{ gophish_user }}"
-
-- name: Create directory for gophish.
-  file:
-    path: "/home/{{ gophish_user }}/gophish_deploy"
-    state: directory
-    mode: 0755
-    owner: "{{ gophish_user }}"
-    group: "{{ gophish_user }}"
-
-- name: Unzip gophish file.
-  unarchive:
-    src: "/home/{{ gophish_user }}/gophish.zip"
-    dest: "/home/{{ gophish_user }}/gophish_deploy"
-    remote_src: True # File is on target server and not locally.
-    owner: "{{ gophish_user }}"
-    group: "{{ gophish_user }}"
-
-- name: Change ownership of Gophish folder and files.
-  file:
-    path: /home/{{ gophish_user }}/gophish_deploy
-    owner: "{{ gophish_user }}"
-    group: "{{ gophish_user }}"
-    recurse: True
-
-- name: Ensure gophish binary is executable
-  file:
-    path: /home/{{ gophish_user }}/gophish_deploy/gophish
-    mode: 744
-
-- name: Ensure gophish binary is allowed to bind to privileged ports using setcap
-  capabilities:
-    path: /home/{{ gophish_user }}/gophish_deploy/gophish
-    capability: cap_net_bind_service+eip
-    state: present
-
-- name: Copy config.json file.
-  copy:
-    src: files/config.json
-    dest: "/home/{{ gophish_user }}/gophish_deploy/config.json"
-    owner: "{{ gophish_user }}"
-    group: "{{ gophish_user }}"
-    mode: 0644
-
-- name: Ensure gophish service file is properly set
-  template:
-    src: gophish.service.j2
-    dest: /etc/systemd/system/gophish.service
-    mode: 644
-
-- name: Ensure systemd to reread configs
-  systemd:
-    daemon_reload: yes
-
-- name: Ensure gophish is properly started
-  service:
-    name: gophish.service
-    state: started
-    enabled: yes
-
-- name: Ensure nginx is installed
-  package:
+- name: Install nginx
+  ansible.builtin.apt:
     name: nginx
     state: present
+  when: configure_nginx
 
-- name: Ensure nginx service file is properly set
-  template:
+- name: Deploy the nginx site
+  ansible.builtin.template:
     src: nginx.conf.j2
-    dest: /etc/nginx/nginx.conf
-    mode: 644
+    dest: /etc/nginx/sites-available/phish_wu
+    owner: root
+    group: root
+    mode: "0644"
+  when: configure_nginx
+  notify: Reload nginx
 
-- name: Ensure nginx service is restarted
-  service:
-    name: nginx
-    state: reloaded
-    enabled: yes
+- name: Enable the site
+  ansible.builtin.file:
+    src: /etc/nginx/sites-available/phish_wu
+    dest: /etc/nginx/sites-enabled/phish_wu
+    state: link
+  when: configure_nginx
+  notify: Reload nginx
 
-- name: get Gophish log file which contain initial password
-  command: cat /home/{{ gophish_user }}/gophish_deploy/gophish.log
-  register: gophish_log
+- name: Remove the default site
+  ansible.builtin.file:
+    path: /etc/nginx/sites-enabled/default
+    state: absent
+  when: configure_nginx
+  notify: Reload nginx
 
-- name: display log file
-  debug:
-    msg: "{{ gophish_log }}"
+# ----------------------------------------------------------------- report ---
 
-- name: Reboot the box in 1 minute.
-  command: shutdown -r 1
-  when: reboot_box
+- name: Read the initial admin password from the journal
+  ansible.builtin.shell: >-
+    journalctl -u gophish --no-pager | grep -m1 'Please login with the username' || true
+  register: initial_password
+  changed_when: false
+
+- name: Initial credentials
+  ansible.builtin.debug:
+    msg: >-
+      {{ initial_password.stdout | default('already initialised - the password was only printed on first start', true) }}
+  when: initial_password.stdout | length > 0
