@@ -345,9 +345,20 @@ func shouldEmbedAttachment(name string) bool {
 // Add an attachment to a gomail message, with the Content-Disposition
 // header set to inline or attachment depending on its file extension.
 func addAttachment(msg *gomail.Message, a Attachment, ptx PhishingTemplateContext) {
+	// Inside an attachment, the tracking template variables must point at the
+	// attachment endpoint so the open is recorded as an attachment open rather
+	// than an email open.
+	//
+	// Tracker is a pre-rendered <img> tag built from TrackingURL back in
+	// NewPhishingTemplateContext, so overriding TrackingURL alone is not
+	// enough: an attachment using {{.Tracker}} would still call /track and the
+	// two actions would interfere. ptx is copied by value, so the email body
+	// keeps its own /track pixel.
 	attachmentPTX := ptx
 	if attachmentPTX.AttachmentTrackingURL != "" {
 		attachmentPTX.TrackingURL = attachmentPTX.AttachmentTrackingURL
+		attachmentPTX.Tracker = "<img alt='' style='display: none' src='" +
+			attachmentPTX.AttachmentTrackingURL + "'/>"
 	}
 	copyFunc := gomail.SetCopyFunc(func(c Attachment) func(w io.Writer) error {
 		return func(w io.Writer) error {

@@ -67,14 +67,14 @@ func NewPhishingTemplateContext(ctx TemplateContext, r BaseRecipient, rid string
 	attachmentTrackingURL.RawQuery = q.Encode()
 
 	return PhishingTemplateContext{
-		BaseRecipient:           r,
-		BaseURL:                 baseURL.String(),
-		URL:                     phishURL.String(),
-		TrackingURL:             trackingURL.String(),
-		AttachmentTrackingURL:   attachmentTrackingURL.String(),
-		Tracker:                 "<img alt='' style='display: none' src='" + trackingURL.String() + "'/>",
-		From:                    fn,
-		RId:                     rid,
+		BaseRecipient:         r,
+		BaseURL:               baseURL.String(),
+		URL:                   phishURL.String(),
+		TrackingURL:           trackingURL.String(),
+		AttachmentTrackingURL: attachmentTrackingURL.String(),
+		Tracker:               "<img alt='' style='display: none' src='" + trackingURL.String() + "'/>",
+		From:                  fn,
+		RId:                   rid,
 	}, nil
 }
 
