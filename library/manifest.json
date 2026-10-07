@@ -9,7 +9,13 @@
         "subject": "【系統通知】{{.FirstName}} 您的帳號密碼將於 3 日後到期",
         "html": "emails/01-password-expiry.html",
         "text": "emails/01-password-expiry.txt",
-        "attachments": []
+        "attachments": [
+          {
+            "name": "密碼原則摘要.html",
+            "type": "text/html",
+            "file": "attachments/01-password-policy.html"
+          }
+        ]
       },
       "page": {
         "name": "01 - 單一登入頁（密碼更新）",
@@ -90,7 +96,13 @@
         "subject": "{{.FirstName}}，有一份文件與您共用：Q4 專案預算表",
         "html": "emails/04-shared-document.html",
         "text": "emails/04-shared-document.txt",
-        "attachments": []
+        "attachments": [
+          {
+            "name": "Q4專案預算表_預覽.html",
+            "type": "text/html",
+            "file": "attachments/04-document-preview.html"
+          }
+        ]
       },
       "page": {
         "name": "04 - 文件檢視登入",
@@ -142,7 +154,13 @@
         "subject": "配送失敗通知：有一件包裹因地址不完整退回（編號 TW{{.RId}}）",
         "html": "emails/06-delivery-failure.html",
         "text": "emails/06-delivery-failure.txt",
-        "attachments": []
+        "attachments": [
+          {
+            "name": "配送通知單_TW.html",
+            "type": "text/html",
+            "file": "attachments/06-delivery-notice.html"
+          }
+        ]
       },
       "page": {
         "name": "06 - 配送資訊確認",
@@ -170,6 +188,11 @@
             "name": "Q1專案進度檢討.ics",
             "type": "text/calendar",
             "file": "attachments/07-meeting-invite.ics"
+          },
+          {
+            "name": "Q1進度檢討_議程.html",
+            "type": "text/html",
+            "file": "attachments/07-meeting-agenda.html"
           }
         ]
       },
@@ -194,7 +217,13 @@
         "subject": "【資安警示】偵測到您的帳號有異常登入行為，請立即確認",
         "html": "emails/08-suspicious-signin.html",
         "text": "emails/08-suspicious-signin.txt",
-        "attachments": []
+        "attachments": [
+          {
+            "name": "登入活動紀錄.html",
+            "type": "text/html",
+            "file": "attachments/08-signin-log.html"
+          }
+        ]
       },
       "page": {
         "name": "08 - 帳號安全驗證",
@@ -246,7 +275,13 @@
         "subject": "{{.FirstName}}，3 分鐘問卷：年度員工意見調查（匿名）",
         "html": "emails/10-employee-survey.html",
         "text": "emails/10-employee-survey.txt",
-        "attachments": []
+        "attachments": [
+          {
+            "name": "問卷說明與獎項.html",
+            "type": "text/html",
+            "file": "attachments/10-survey-info.html"
+          }
+        ]
       },
       "page": {
         "name": "10 - 問卷登入頁",

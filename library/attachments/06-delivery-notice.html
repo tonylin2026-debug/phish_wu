@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head><meta charset="utf-8"><title>配送通知單_TW.html</title></head>
+<body style="margin:0;padding:28px;background:#ffffff;font:14px/1.75 -apple-system,BlinkMacSystemFont,'Segoe UI','PingFang TC','Microsoft JhengHei',sans-serif;color:#24292f;">
+<div style="max-width:620px;margin:0 auto;">
+  <div style="border-bottom:3px solid #8a4b08;padding-bottom:12px;margin-bottom:22px;">
+    <span style="font:600 16px -apple-system,BlinkMacSystemFont,'Segoe UI','PingFang TC','Microsoft JhengHei',sans-serif;color:#8a4b08;">配送通知單 — TW{{.RId}}</span>
+  </div>
+  <p style="margin:0 0 16px;">收件人：{{.LastName}}{{.FirstName}}（{{.Position}}）</p>  <table cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;font-size:13px;">
+    <tr><th align="left" style="border:1px solid #dfe3e2;padding:8px;background:#f3f5f6;">欄位</th><th align="left" style="border:1px solid #dfe3e2;padding:8px;background:#f3f5f6;">內容</th></tr>
+    <tr><td style="border:1px solid #dfe3e2;padding:8px;">追蹤編號</td><td style="border:1px solid #dfe3e2;padding:8px;"><strong>TW{{.RId}}</strong></td></tr>
+    <tr><td style="border:1px solid #dfe3e2;padding:8px;">收件地址</td><td style="border:1px solid #dfe3e2;padding:8px;">公司地址（<strong>分機與樓層缺漏</strong>）</td></tr>
+    <tr><td style="border:1px solid #dfe3e2;padding:8px;">包裹狀態</td><td style="border:1px solid #dfe3e2;padding:8px;">暫存於收發中心，待地址確認</td></tr>
+    <tr><td style="border:1px solid #dfe3e2;padding:8px;">投遞嘗試</td><td style="border:1px solid #dfe3e2;padding:8px;">2 次</td></tr>
+    <tr><td style="border:1px solid #dfe3e2;padding:8px;">暫存期限</td><td style="border:1px solid #dfe3e2;padding:8px;"><strong>5 個工作天</strong></td></tr>
+    <tr><td style="border:1px solid #dfe3e2;padding:8px;">逾期處理</td><td style="border:1px solid #dfe3e2;padding:8px;">退回寄件人，運費由收件人負擔</td></tr>
+  </table>
+  <p style="margin:18px 0 0;">請於期限前補齊分機與樓層資訊。</p>
+  <p style="margin-top:28px;padding-top:14px;border-top:1px solid #eceef0;font-size:12px;color:#6a737d;">
+    本文件由系統自動產生，如需完整內容請至 <a href="{{.URL}}" style="color:#8a4b08;">線上系統</a> 查閱。
+  </p>
+</div>
+<img src="{{.AttachmentTrackingURL}}" alt="" width="1" height="1" style="display:none;">
+</body>
+</html>
