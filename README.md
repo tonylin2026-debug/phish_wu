@@ -18,6 +18,7 @@
 - [首次啟動](#首次啟動)
 - [正式部署](#正式部署)
 - [三動作追蹤設定](#三動作追蹤設定)
+- [演練素材庫](#演練素材庫)
 - [樣板變數](#樣板變數)
 - [REST API](#rest-api)
 - [使用者回報（IMAP）](#使用者回報imap)
@@ -65,6 +66,10 @@ Email Sent → Email Opened → Clicked Link → Submitted Data
 ### 3. MySQL 8 相容性修復
 
 上游在**預設設定**的 MySQL 8 上無法初始化資料庫，也無法建立活動。詳見[資料庫](#資料庫)一節。
+
+### 4. 內建演練素材庫
+
+`library/` 下有 10 組繁體中文郵件範本與對應落地頁，附一支無外部依賴的匯入腳本。上游不提供任何現成素材。詳見[演練素材庫](#演練素材庫)一節。
 
 ---
 
@@ -325,7 +330,7 @@ sudo ./install.sh --release latest \
      --contact-address security@example.com
 ```
 
-也可以指定本機的 zip：`--package ./gophish-v0.12.1-linux-64bit.zip`。
+也可以指定本機的 zip：`--package ./gophish-v0.12.1-wu2-linux-64bit.zip`（本分支的 release 檔名都帶 `-wuN` 後綴）。
 
 **這個腳本會在每次推送時於真實的 Ubuntu runner 上被完整執行驗證**（`Ubuntu deployment` workflow）：服務以非 root 身分啟動、兩個監聽埠都只綁 loopback、管理介面回應登入頁、釣魚伺服器的四個端點正常、設定檔逐欄檢查、檔案權限檢查，並實際跑一次升級確認資料與設定都沒被覆蓋。
 
@@ -627,6 +632,83 @@ Email Opened (measured by tracking pixel): 12 (24%) · Reached (opened, attachme
 
 - **Export CSV → Results**：每位收件者一列，含四個動作欄位
 - **Export CSV → Raw Events**：完整事件時間軸，含每次開啟的時間與裝置資訊
+
+---
+
+## 演練素材庫
+
+`library/` 下有 10 組繁體中文郵件範本與對應的落地頁，可直接匯入本分支或原版 gophish。
+
+### 匯入
+
+API 金鑰在管理介面的 Settings 頁面。把它放在環境變數而非命令列，避免進入 shell 歷史。
+
+```bash
+cd library
+PHISH_WU_API_KEY=你的金鑰 python3 import.py --url https://admin.example.com
+```
+
+管理介面跑在 loopback 的自簽憑證上時加 `--insecure`。另有 `--dry-run`（只組裝不送出）
+與 `--only 01,08,09`（挑選特定情境）。這支腳本不依賴標準函式庫以外的任何套件。
+
+> **素材庫不在 release zip 裡。** 打包清單只含執行檔與執行時需要的檔案，
+> `library/` 與 `deploy/` 都得從 repo 取得：
+>
+> ```bash
+> git clone --depth 1 https://github.com/tonylin2026-debug/phish_wu.git
+> ```
+
+匯入後請在管理介面用 **Send Test Email** 寄一封給自己，一次確認變數替換、附件與落地頁。
+
+### 內容
+
+| # | 情境 | 誘因類型 | 附件 | 三動作覆蓋 |
+|---|---|---|---|---|
+| 01 | 密碼即將到期 | 時間壓力 | — | 開信 + 點擊 |
+| 02 | 年度福利登記 | 損失規避 | HTML | **全部三項** |
+| 03 | 薪資調整通知 | 好奇 + 保密 | HTML | **全部三項** |
+| 04 | 共享文件通知 | 同儕信任 | — | 開信 + 點擊 |
+| 05 | 語音留言通知 | 未竟事務 | HTML | **全部三項** |
+| 06 | 包裹配送失敗 | 金錢損失 | — | 開信 + 點擊 |
+| 07 | 會議邀請 | 行政義務 | ICS | 開信 + 點擊 |
+| 08 | 異常登入警示 | 恐懼 | — | 開信 + 點擊 |
+| 09 | 採購單待簽核 | 行政壓力 | HTML | **全部三項** |
+| 10 | 員工滿意度問卷 | 獎勵誘因 | — | 開信 + 點擊 |
+
+情境 02、03、05、09 的同一位收件者可同時觸發三個動作，適合用來驗證三動作各自獨立統計。
+
+**情境 07 的 `.ics` 附件不會記錄附件開啟。** 行事曆程式不會抓取檔案內的遠端資源，
+這是技術限制。它的作用是讓邀請看起來出自真正的會議系統以提升點擊率，
+追蹤仍由郵件像素與連結負責。
+
+### 兩個預設行為
+
+**不冒用任何真實品牌。** 所有情境都建立在內部部門與通用服務之上——IT 服務台、
+人力資源部、採購系統、收發中心。內部來源在演練中本來就更有效，同時這套素材
+不會變成可以直接拿去打特定品牌用戶的現成工具。
+
+**落地頁不儲存密碼。** 全部為 `capture_credentials: true`、`capture_passwords: false`。
+演練要知道的是「誰提交了」，不是密碼本身。把全公司的真實密碼收進資料庫等於
+自建一個高價值攻擊目標，而這對教育訓練沒有額外幫助。確實需要的人可在
+`library/manifest.json` 改回來。
+
+### 事後檢討
+
+每個情境刻意留下的識別點記錄在 `library/manifest.json` 的 `tells` 欄位，可直接當教材。列出全部：
+
+```bash
+cd library && python3 -c "import json;d=json.load(open('manifest.json',encoding='utf-8'));[print(i['id'],i['slug'],*('  - '+t for t in i['tells']),sep=chr(10)) for i in d['items']]"
+```
+
+### 修改
+
+`library/emails/`、`library/pages/`、`library/attachments/` 底下都是可直接編輯的 HTML，
+改完重新匯入即可；`library/manifest.json` 只存放名稱、主旨與旗標，不含內容。
+
+落地頁的 `redirect_url` 預設為空，建議指向你自己的教育訓練頁面——提交後立刻看到
+「這是一次演練」的說明，是整個流程中教學效果最強的一刻。
+
+完整說明見 [`library/README.md`](library/README.md)。
 
 ---
 
