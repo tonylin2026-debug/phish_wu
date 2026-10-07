@@ -332,6 +332,13 @@ sudo ./install.sh --release latest \
 
 也可以指定本機的 zip：`--package ./gophish-v0.12.1-wu2-linux-64bit.zip`（本分支的 release 檔名都帶 `-wuN` 後綴）。
 
+**只有第一次需要 `curl`。** release 檔案裡含有 `deploy/`，安裝時會一併複製到安裝目錄，
+所以之後升級直接用留在機器上的那一份即可——它會隨每次升級更新為該版本的腳本：
+
+```bash
+sudo /opt/gophish/deploy/install.sh --release latest
+```
+
 **這個腳本會在每次推送時於真實的 Ubuntu runner 上被完整執行驗證**（`Ubuntu deployment` workflow）：服務以非 root 身分啟動、兩個監聽埠都只綁 loopback、管理介面回應登入頁、釣魚伺服器的四個端點正常、設定檔逐欄檢查、檔案權限檢查，並實際跑一次升級確認資料與設定都沒被覆蓋。
 
 它採用的拓樸是：
@@ -651,12 +658,15 @@ PHISH_WU_API_KEY=你的金鑰 python3 import.py --url https://admin.example.com
 管理介面跑在 loopback 的自簽憑證上時加 `--insecure`。另有 `--dry-run`（只組裝不送出）
 與 `--only 01,08,09`（挑選特定情境）。這支腳本不依賴標準函式庫以外的任何套件。
 
-> **素材庫不在 release zip 裡。** 打包清單只含執行檔與執行時需要的檔案，
-> `library/` 與 `deploy/` 都得從 repo 取得：
->
-> ```bash
-> git clone --depth 1 https://github.com/tonylin2026-debug/phish_wu.git
-> ```
+素材庫包含在 release 檔案中，所以用 `deploy/install.sh` 安裝的機器上，
+`/opt/gophish/library/` 就是該版本的素材庫，不需要另外取得：
+
+```bash
+sudo PHISH_WU_API_KEY=你的金鑰 python3 /opt/gophish/library/import.py --url https://admin.example.com
+```
+
+（安裝目錄是 `0750 gophish:gophish`，所以需要 `sudo`。`import.py` 以自身所在位置
+解析素材檔案，從任何目錄執行都可以。）
 
 匯入後請在管理介面用 **Send Test Email** 寄一封給自己，一次確認變數替換、附件與落地頁。
 

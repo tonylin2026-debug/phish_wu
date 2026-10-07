@@ -107,6 +107,8 @@ jobs:
                       static/db \
                       db \
                       templates \
+                      deploy \
+                      library \
                       README.md \
                       VERSION \
                       LICENSE \
@@ -176,10 +178,11 @@ jobs:
                 gh release view "$TAG" --repo "${{ github.repository }}" \
                   --json body -q .body > notes.md
 
-                if grep -q '^## SHA256' notes.md; then
-                  echo "hashes already present, leaving the notes alone"
-                  exit 0
-                fi
+                # Drop any table from an earlier run before writing a new
+                # one. workflow_dispatch can rebuild a published tag, and
+                # keeping the old hashes would leave the notes stating
+                # checksums that do not match the attached files.
+                sed -i '/^## SHA256$/,$d' notes.md
 
                 {
                   echo
