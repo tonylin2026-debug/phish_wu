@@ -17,3 +17,10 @@ static/js/sweetalert2.min.js linguist-vendored
 # database as-is, so a CRLF picked up from a Windows checkout would end up
 # inside the templates themselves.
 library/** text eol=lf
+
+# The application JavaScript is edited by hand and the dist copies are kept
+# byte-identical to their sources until someone runs gulp, which is an
+# invariant worth being able to check with cmp. One source was committed with
+# CRLF and broke that comparison for no reason anyone could see.
+static/js/src/app/** text eol=lf
+static/js/dist/app/** text eol=lf
