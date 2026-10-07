@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/textproto"
+	"time"
 
 	"github.com/gophish/gomail"
 	log "github.com/gophish/gophish/logger"
@@ -13,6 +14,13 @@ import (
 
 // MaxReconnectAttempts is the maximum number of times we should reconnect to a server
 var MaxReconnectAttempts = 10
+
+// ReconnectDelay is how long to wait between reconnect attempts. Without a
+// delay the whole retry budget is spent in microseconds, which is no more
+// likely to succeed than a single attempt against a server that is briefly
+// refusing connections - a rate limited relay, a restarting MTA, a transient
+// network fault.
+var ReconnectDelay = 1 * time.Second
 
 // ErrMaxConnectAttempts is thrown when the maximum number of reconnect attempts
 // is reached.
@@ -116,7 +124,9 @@ func dialHost(ctx context.Context, dialer Dialer) (Sender, error) {
 	for {
 		select {
 		case <-ctx.Done():
-			return nil, nil
+			// Returning a nil Sender with a nil error would have the caller
+			// defer Close on nothing.
+			return nil, ctx.Err()
 		default:
 			break
 		}
@@ -131,6 +141,14 @@ func dialHost(ctx context.Context, dialer Dialer) (Sender, error) {
 			}
 			break
 		}
+		// Wait before dialing again, while staying responsive to shutdown.
+		timer := time.NewTimer(ReconnectDelay)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return nil, ctx.Err()
+		case <-timer.C:
+		}
 	}
 	return sender, err
 }
@@ -141,6 +159,11 @@ func dialHost(ctx context.Context, dialer Dialer) (Sender, error) {
 func sendMail(ctx context.Context, dialer Dialer, ms []Mail) {
 	sender, err := dialHost(ctx, dialer)
 	if err != nil {
+		if ctx.Err() != nil {
+			// Shutting down. Leave the mail untouched, as documented above,
+			// so it is picked up again on the next start.
+			return
+		}
 		log.Warn(err)
 		errorMail(err, ms)
 		return

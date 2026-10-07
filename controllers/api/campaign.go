@@ -127,7 +127,20 @@ func (as *Server) CampaignComplete(w http.ResponseWriter, r *http.Request) {
 	id, _ := strconv.ParseInt(vars["id"], 0, 64)
 	switch {
 	case r.Method == "GET":
-		err := models.CompleteCampaign(id, ctx.Get(r, "user_id").(int64))
+		// Completing a campaign changes state, but it is reached over GET and
+		// EnforceViewOnly keys off the HTTP method, so that middleware never
+		// applies to this route. Apply the permission it would have applied.
+		user := ctx.Get(r, "user").(models.User)
+		access, err := user.HasPermission(models.PermissionModifyObjects)
+		if err != nil {
+			JSONResponse(w, models.Response{Success: false, Message: "Error checking permissions"}, http.StatusInternalServerError)
+			return
+		}
+		if !access {
+			JSONResponse(w, models.Response{Success: false, Message: http.StatusText(http.StatusForbidden)}, http.StatusForbidden)
+			return
+		}
+		err = models.CompleteCampaign(id, ctx.Get(r, "user_id").(int64))
 		if err != nil {
 			JSONResponse(w, models.Response{Success: false, Message: "Error completing campaign"}, http.StatusInternalServerError)
 			return

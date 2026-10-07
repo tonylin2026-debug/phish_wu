@@ -73,7 +73,12 @@ func (as *Server) Page(w http.ResponseWriter, r *http.Request) {
 		p = models.Page{}
 		err = json.NewDecoder(r.Body).Decode(&p)
 		if err != nil {
+			// encoding/json fills in every field it can and reports a type
+			// error at the end, so continuing here would persist a partly
+			// decoded page and answer 200.
 			log.Error(err)
+			JSONResponse(w, models.Response{Success: false, Message: "Invalid request"}, http.StatusBadRequest)
+			return
 		}
 		if p.Id != id {
 			JSONResponse(w, models.Response{Success: false, Message: "/:id and /:page_id mismatch"}, http.StatusBadRequest)

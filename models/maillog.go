@@ -292,8 +292,11 @@ func LockMailLogs(ms []*MailLog, lock bool) error {
 			return err
 		}
 	}
-	tx.Commit()
-	return nil
+	// A failed commit means the rows were never actually locked. Reporting
+	// success anyway hands the batch to the mailer, and the next tick reads
+	// the same unlocked rows and sends every one of those emails a second
+	// time.
+	return tx.Commit().Error
 }
 
 // UnlockAllMailLogs removes the processing lock for all maillogs
