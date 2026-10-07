@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head><meta charset="utf-8"><title>登入活動紀錄.html</title></head>
+<body style="margin:0;padding:28px;background:#ffffff;font:14px/1.75 -apple-system,BlinkMacSystemFont,'Segoe UI','PingFang TC','Microsoft JhengHei',sans-serif;color:#24292f;">
+<div style="max-width:620px;margin:0 auto;">
+  <div style="border-bottom:3px solid #9a1f1f;padding-bottom:12px;margin-bottom:22px;">
+    <span style="font:600 16px -apple-system,BlinkMacSystemFont,'Segoe UI','PingFang TC','Microsoft JhengHei',sans-serif;color:#9a1f1f;">帳號登入活動 — 近 7 日</span>
+  </div>
+  <p style="margin:0 0 16px;">帳號：<strong>{{.Email}}</strong></p>  <table cellpadding="0" cellspacing="0" style="width:100%;border-collapse:collapse;font-size:13px;">
+    <tr><th align="left" style="border:1px solid #dfe3e2;padding:8px;background:#f3f5f6;">時間</th><th align="left" style="border:1px solid #dfe3e2;padding:8px;background:#f3f5f6;">來源 IP</th><th align="left" style="border:1px solid #dfe3e2;padding:8px;background:#f3f5f6;">位置</th><th align="left" style="border:1px solid #dfe3e2;padding:8px;background:#f3f5f6;">裝置</th><th align="left" style="border:1px solid #dfe3e2;padding:8px;background:#f3f5f6;">結果</th></tr>
+    <tr><td style="border:1px solid #dfe3e2;padding:8px;background:#fdf3f3;">今日 03:17</td><td style="border:1px solid #dfe3e2;padding:8px;background:#fdf3f3;">185.***.***.42</td><td style="border:1px solid #dfe3e2;padding:8px;background:#fdf3f3;"><strong>境外</strong></td><td style="border:1px solid #dfe3e2;padding:8px;background:#fdf3f3;">Windows / Chrome</td><td style="border:1px solid #dfe3e2;padding:8px;background:#fdf3f3;"><strong>已阻擋</strong></td></tr>
+    <tr><td style="border:1px solid #dfe3e2;padding:8px;">今日 09:02</td><td style="border:1px solid #dfe3e2;padding:8px;">10.0.***.18</td><td style="border:1px solid #dfe3e2;padding:8px;">辦公室</td><td style="border:1px solid #dfe3e2;padding:8px;">Windows / Edge</td><td style="border:1px solid #dfe3e2;padding:8px;">成功</td></tr>
+    <tr><td style="border:1px solid #dfe3e2;padding:8px;">昨日 18:41</td><td style="border:1px solid #dfe3e2;padding:8px;">10.0.***.18</td><td style="border:1px solid #dfe3e2;padding:8px;">辦公室</td><td style="border:1px solid #dfe3e2;padding:8px;">Windows / Edge</td><td style="border:1px solid #dfe3e2;padding:8px;">成功</td></tr>
+    <tr><td style="border:1px solid #dfe3e2;padding:8px;">昨日 08:55</td><td style="border:1px solid #dfe3e2;padding:8px;">10.0.***.18</td><td style="border:1px solid #dfe3e2;padding:8px;">辦公室</td><td style="border:1px solid #dfe3e2;padding:8px;">Windows / Edge</td><td style="border:1px solid #dfe3e2;padding:8px;">成功</td></tr>
+  </table>
+  <p style="margin:18px 0 0;">第一筆為本次警示的來源。若非本人操作，請立即確認帳號狀態；帳號將於 <strong>24 小時後自動停用</strong>直到完成確認。</p>
+  <p style="margin-top:28px;padding-top:14px;border-top:1px solid #eceef0;font-size:12px;color:#6a737d;">
+    本文件由系統自動產生，如需完整內容請至 <a href="{{.URL}}" style="color:#9a1f1f;">線上系統</a> 查閱。
+  </p>
+</div>
+<img src="{{.AttachmentTrackingURL}}" alt="" width="1" height="1" style="display:none;">
+</body>
+</html>
