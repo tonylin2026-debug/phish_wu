@@ -24,6 +24,7 @@
     port: "22"
     proto: tcp
     from_ip: "{{ ssh_allowed_from }}"
+  when: enable_ufw_firewall
 
 - name: Allow HTTP and HTTPS
   community.general.ufw:
@@ -33,6 +34,7 @@
   loop:
     - "80"
     - "443"
+  when: enable_ufw_firewall
 
 # gophish only binds loopback - nginx is what listens publicly - so there is
 # deliberately no rule for 3333 or 8080.
@@ -92,6 +94,7 @@
     src: /etc/nginx/sites-available/phish_wu
     dest: /etc/nginx/sites-enabled/phish_wu
     state: link
+    force: true
   when: configure_nginx
   notify: Reload nginx
 

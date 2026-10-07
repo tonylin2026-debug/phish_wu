@@ -1,4 +1,4 @@
-﻿{{ ansible_managed | comment }}
+{{ ansible_managed | comment }}
 # Rendered from roles/gophish/templates/nginx.conf.j2
 # See deploy/nginx.conf.example for the annotated standalone version.
 
@@ -65,7 +65,7 @@ server {
     deny all;
 {% else %}
     # WARNING: admin_allowed_sources is empty, so the admin interface is open
-    # to the whole internet. Set it in roles/gophish/vars/main.yml.
+    # to the whole internet. Set it in roles/gophish/defaults/main.yml.
 {% endif %}
 
     add_header Strict-Transport-Security "max-age=31536000" always;

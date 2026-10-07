@@ -29,7 +29,7 @@ ansible-galaxy collection install community.general
 203.0.113.10
 ```
 
-**2. `roles/gophish/vars/main.yml`** —— 至少要改這幾項：
+**2. `roles/gophish/defaults/main.yml`** —— 至少要改這幾項：
 
 | 變數 | 說明 |
 |---|---|
