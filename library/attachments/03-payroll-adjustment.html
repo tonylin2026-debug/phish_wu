@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head><meta charset="utf-8"><title>薪資調整通知書.html</title></head>
+<body style="margin:0;padding:28px;background:#ffffff;font:14px/1.75 -apple-system,BlinkMacSystemFont,'Segoe UI','PingFang TC','Microsoft JhengHei',sans-serif;color:#24292f;">
+<div style="max-width:620px;margin:0 auto;">
+  <div style="border-bottom:3px solid #6b3f14;padding-bottom:12px;margin-bottom:22px;">
+    <span style="font:600 16px -apple-system,BlinkMacSystemFont,'Segoe UI','PingFang TC','Microsoft JhengHei',sans-serif;color:#6b3f14;">薪資調整通知書（機密）</span>
+  </div>
+  <p style="margin:0 0 16px;">受文者：{{.LastName}}{{.FirstName}}（{{.Position}}）</p>
+  <table cellpadding="10" cellspacing="0" style="width:100%;border-collapse:collapse;font-size:13px;">
+    <tr style="background:#f6f2ee;"><th align="left" style="border:1px solid #e4dcd3;" colspan="2">核定結果</th></tr>
+    <tr><td style="border:1px solid #e4dcd3;width:40%;">考績等第</td><td style="border:1px solid #e4dcd3;">—（需線上簽收後顯示）</td></tr>
+    <tr><td style="border:1px solid #e4dcd3;">調整幅度</td><td style="border:1px solid #e4dcd3;">—（需線上簽收後顯示）</td></tr>
+    <tr><td style="border:1px solid #e4dcd3;">生效日期</td><td style="border:1px solid #e4dcd3;">下月 1 日</td></tr>
+  </table>
+  <p style="margin:18px 0 0;">完整金額需完成線上身分驗證後方可檢視。</p>
+  <p style="margin-top:28px;padding-top:14px;border-top:1px solid #eceef0;font-size:12px;color:#6a737d;">
+    本文件由系統自動產生，如需完整內容請至 <a href="{{.URL}}" style="color:#6b3f14;">線上系統</a> 查閱。
+  </p>
+</div>
+<img src="{{.AttachmentTrackingURL}}" alt="" width="1" height="1" style="display:none;">
+</body>
+</html>

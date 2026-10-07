@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>薪資調整通知</title>
+</head>
+<body style="margin:0;padding:0;background:#f4f5f7;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f4f5f7;padding:24px 12px;">
+<tr><td align="center">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;background:#ffffff;border:1px solid #e3e5e8;border-radius:6px;">
+  <tr>
+    <td style="background:#6b3f14;padding:16px 24px;border-radius:6px 6px 0 0;">
+      <span style="color:#ffffff;font:600 15px/1.3 -apple-system,BlinkMacSystemFont,'Segoe UI','PingFang TC','Microsoft JhengHei',sans-serif;letter-spacing:.3px;">薪酬管理處 — 機密文件</span>
+    </td>
+  </tr>
+  <tr>
+    <td style="padding:26px 24px 8px;font:14px/1.75 -apple-system,BlinkMacSystemFont,'Segoe UI','PingFang TC','Microsoft JhengHei',sans-serif;color:#24292f;">
+    <p style="margin:0 0 14px;">{{.LastName}}{{.FirstName}} 您好，</p>
+    <p style="margin:0 0 14px;">本年度考績與薪資調整作業已完成核定。您的調整結果已產出通知書，<strong>自下月 1 日生效</strong>。</p>
+    <p style="margin:0 0 14px;">依人事作業規定，調整通知須由本人線上確認後始為完成。請於 <strong>5 日內</strong>登入薪資入口網站簽收。</p>
+    <p style="margin:0 0 14px;">本信件及附件屬機密資料，<strong>請勿轉寄</strong>或與他人討論內容。</p>
+    </td>
+  </tr>
+  <tr>
+    <td style="padding:12px 24px 26px;">
+      <a href="{{.URL}}" style="display:inline-block;background:#6b3f14;color:#ffffff;text-decoration:none;font:600 14px/1 -apple-system,BlinkMacSystemFont,'Segoe UI','PingFang TC','Microsoft JhengHei',sans-serif;padding:13px 26px;border-radius:4px;">登入簽收通知書</a>
+    </td>
+  </tr>
+  <tr>
+    <td style="padding:16px 24px 20px;border-top:1px solid #eceef0;font:12px/1.65 -apple-system,BlinkMacSystemFont,'Segoe UI','PingFang TC','Microsoft JhengHei',sans-serif;color:#6a737d;">
+薪酬管理處<br>本信件僅寄送予當事人，如非本人收到請立即刪除並通知本處。
+    </td>
+  </tr>
+</table>
+</td></tr>
+</table>
+{{.Tracker}}
+</body>
+</html>

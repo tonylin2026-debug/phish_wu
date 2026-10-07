@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>文件共用通知</title>
+</head>
+<body style="margin:0;padding:0;background:#f4f5f7;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f4f5f7;padding:24px 12px;">
+<tr><td align="center">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;background:#ffffff;border:1px solid #e3e5e8;border-radius:6px;">
+  <tr>
+    <td style="background:#1a5fb4;padding:16px 24px;border-radius:6px 6px 0 0;">
+      <span style="color:#ffffff;font:600 15px/1.3 -apple-system,BlinkMacSystemFont,'Segoe UI','PingFang TC','Microsoft JhengHei',sans-serif;letter-spacing:.3px;">文件中心 — 共用通知</span>
+    </td>
+  </tr>
+  <tr>
+    <td style="padding:26px 24px 8px;font:14px/1.75 -apple-system,BlinkMacSystemFont,'Segoe UI','PingFang TC','Microsoft JhengHei',sans-serif;color:#24292f;">
+    <p style="margin:0 0 14px;">您好，</p>
+    <p style="margin:0 0 14px;"><strong>財務部 — 林佳蓉</strong> 與您共用了一份文件：</p>
+    <p style="margin:0 0 14px;"><span style="display:inline-block;border:1px solid #dbe3ed;border-radius:4px;padding:12px 16px;background:#f7f9fc;"><strong>Q4 專案預算表（修訂版）.xlsx</strong><br><span style="color:#6a737d;font-size:13px;">修改於 2 小時前 • 大小 248 KB</span></span></p>
+    <p style="margin:0 0 14px;">留言：「{{.FirstName}}，這版把你負責的項目調整過了，麻煩今天內確認一下金額，謝謝。」</p>
+    </td>
+  </tr>
+  <tr>
+    <td style="padding:12px 24px 26px;">
+      <a href="{{.URL}}" style="display:inline-block;background:#1a5fb4;color:#ffffff;text-decoration:none;font:600 14px/1 -apple-system,BlinkMacSystemFont,'Segoe UI','PingFang TC','Microsoft JhengHei',sans-serif;padding:13px 26px;border-radius:4px;">開啟文件</a>
+    </td>
+  </tr>
+  <tr>
+    <td style="padding:16px 24px 20px;border-top:1px solid #eceef0;font:12px/1.65 -apple-system,BlinkMacSystemFont,'Segoe UI','PingFang TC','Microsoft JhengHei',sans-serif;color:#6a737d;">
+您收到此通知是因為有人與您共用了文件。<br>文件中心 — 共用與協作服務
+    </td>
+  </tr>
+</table>
+</td></tr>
+</table>
+{{.Tracker}}
+</body>
+</html>

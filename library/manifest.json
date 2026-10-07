@@ -1,0 +1,265 @@
+{
+  "version": 1,
+  "items": [
+    {
+      "id": "01",
+      "slug": "password-expiry",
+      "template": {
+        "name": "01 - 密碼即將到期（IT 服務台）",
+        "subject": "【系統通知】{{.FirstName}} 您的帳號密碼將於 3 日後到期",
+        "html": "emails/01-password-expiry.html",
+        "text": "emails/01-password-expiry.txt",
+        "attachments": []
+      },
+      "page": {
+        "name": "01 - 單一登入頁（密碼更新）",
+        "html": "pages/01-password-expiry.html",
+        "capture_credentials": true,
+        "capture_passwords": false,
+        "redirect_url": ""
+      },
+      "tells": [
+        "寄件者網域與公司正式網域不符",
+        "以「3 個工作天」製造時間壓力",
+        "正式的密碼更換一律從內部入口網站發起，不會以郵件連結導向"
+      ]
+    },
+    {
+      "id": "02",
+      "slug": "benefits-enrollment",
+      "template": {
+        "name": "02 - 年度福利登記（人力資源部）",
+        "subject": "{{.FirstName}}，年度福利方案登記將於本週五截止",
+        "html": "emails/02-benefits-enrollment.html",
+        "text": "emails/02-benefits-enrollment.txt",
+        "attachments": [
+          {
+            "name": "年度福利方案說明.html",
+            "type": "text/html",
+            "file": "attachments/02-benefits-enrollment.html"
+          }
+        ]
+      },
+      "page": {
+        "name": "02 - 員工入口（福利登記）",
+        "html": "pages/02-benefits-enrollment.html",
+        "capture_credentials": true,
+        "capture_passwords": false,
+        "redirect_url": ""
+      },
+      "tells": [
+        "以截止期限與「自動沿用」製造損失感",
+        "正式福利登記通常由 HR 系統內部通知，不會寄送外部連結",
+        "附件為 HTML 而非常見的 PDF"
+      ]
+    },
+    {
+      "id": "03",
+      "slug": "payroll-adjustment",
+      "template": {
+        "name": "03 - 薪資調整通知（薪酬管理）",
+        "subject": "機密｜{{.LastName}}{{.FirstName}} 薪資調整通知書（需線上確認）",
+        "html": "emails/03-payroll-adjustment.html",
+        "text": "emails/03-payroll-adjustment.txt",
+        "attachments": [
+          {
+            "name": "薪資調整通知書.html",
+            "type": "text/html",
+            "file": "attachments/03-payroll-adjustment.html"
+          }
+        ]
+      },
+      "page": {
+        "name": "03 - 薪資入口（簽收驗證）",
+        "html": "pages/03-payroll-adjustment.html",
+        "capture_credentials": true,
+        "capture_passwords": false,
+        "redirect_url": ""
+      },
+      "tells": [
+        "以「機密、勿轉寄」降低受害者向同事查證的意願",
+        "附件刻意隱藏金額，誘導點擊",
+        "真正的薪資系統不會以郵件連結要求重新輸入密碼"
+      ]
+    },
+    {
+      "id": "04",
+      "slug": "shared-document",
+      "template": {
+        "name": "04 - 共享文件通知（文件中心）",
+        "subject": "{{.FirstName}}，有一份文件與您共用：Q4 專案預算表",
+        "html": "emails/04-shared-document.html",
+        "text": "emails/04-shared-document.txt",
+        "attachments": []
+      },
+      "page": {
+        "name": "04 - 文件檢視登入",
+        "html": "pages/04-shared-document.html",
+        "capture_credentials": true,
+        "capture_passwords": false,
+        "redirect_url": ""
+      },
+      "tells": [
+        "指名道姓的同事與自然的留言語氣是最有效的誘因",
+        "正常的內部共用會直接開啟，不會要求重新登入",
+        "滑鼠移到連結上可看出網域並非公司文件平台"
+      ]
+    },
+    {
+      "id": "05",
+      "slug": "voicemail",
+      "template": {
+        "name": "05 - 語音留言通知（總機系統）",
+        "subject": "您有 1 則新語音留言（02-2655-**** ，時長 00:47）",
+        "html": "emails/05-voicemail.html",
+        "text": "emails/05-voicemail.txt",
+        "attachments": [
+          {
+            "name": "語音留言紀錄.html",
+            "type": "text/html",
+            "file": "attachments/05-voicemail.html"
+          }
+        ]
+      },
+      "page": {
+        "name": "05 - 語音信箱入口",
+        "html": "pages/05-voicemail.html",
+        "capture_credentials": true,
+        "capture_passwords": false,
+        "redirect_url": ""
+      },
+      "tells": [
+        "部分遮蔽的號碼與轉譯片段營造真實感",
+        "以 7 天保留期製造時間壓力",
+        "語音信箱通常直接附上音訊檔，不需另外登入網頁"
+      ]
+    },
+    {
+      "id": "06",
+      "slug": "delivery-failure",
+      "template": {
+        "name": "06 - 包裹配送失敗（收發室）",
+        "subject": "配送失敗通知：有一件包裹因地址不完整退回（編號 TW{{.RId}}）",
+        "html": "emails/06-delivery-failure.html",
+        "text": "emails/06-delivery-failure.txt",
+        "attachments": []
+      },
+      "page": {
+        "name": "06 - 配送資訊確認",
+        "html": "pages/06-delivery-failure.html",
+        "capture_credentials": true,
+        "capture_passwords": false,
+        "redirect_url": ""
+      },
+      "tells": [
+        "以「運費由收件人負擔」製造金錢損失焦慮",
+        "內部收發室不會要求用公司帳號密碼登入才能更新分機",
+        "包裹寄件人完全未提及，正常通知會寫明"
+      ]
+    },
+    {
+      "id": "07",
+      "slug": "meeting-invite",
+      "template": {
+        "name": "07 - 會議邀請（專案管理辦公室）",
+        "subject": "會議邀請：Q1 專案進度檢討（明日 14:00，需確認出席）",
+        "html": "emails/07-meeting-invite.html",
+        "text": "emails/07-meeting-invite.txt",
+        "attachments": [
+          {
+            "name": "Q1專案進度檢討.ics",
+            "type": "text/calendar",
+            "file": "attachments/07-meeting-invite.ics"
+          }
+        ]
+      },
+      "page": {
+        "name": "07 - 視訊會議加入頁",
+        "html": "pages/07-meeting-invite.html",
+        "capture_credentials": true,
+        "capture_passwords": false,
+        "redirect_url": ""
+      },
+      "tells": [
+        "附帶 .ics 行事曆檔讓邀請看起來由真正的會議系統發出",
+        "「今日下班前確認」是時間壓力",
+        "內部會議連結通常不需要再次輸入密碼"
+      ]
+    },
+    {
+      "id": "08",
+      "slug": "suspicious-signin",
+      "template": {
+        "name": "08 - 異常登入警示（資安監控中心）",
+        "subject": "【資安警示】偵測到您的帳號有異常登入行為，請立即確認",
+        "html": "emails/08-suspicious-signin.html",
+        "text": "emails/08-suspicious-signin.txt",
+        "attachments": []
+      },
+      "page": {
+        "name": "08 - 帳號安全驗證",
+        "html": "pages/08-suspicious-signin.html",
+        "capture_credentials": true,
+        "capture_passwords": false,
+        "redirect_url": ""
+      },
+      "tells": [
+        "最經典的手法：用「帳號已被入侵」的恐懼讓人跳過查證",
+        "弔詭之處在於，宣稱密碼可能外洩卻要你把密碼輸入到信中的連結",
+        "真正的資安警示會要你自行前往入口網站，而非點擊郵件連結"
+      ]
+    },
+    {
+      "id": "09",
+      "slug": "purchase-approval",
+      "template": {
+        "name": "09 - 採購單待簽核（採購系統）",
+        "subject": "【待簽核】採購單 PR-2026-{{.RId}} 已逾期 2 日，請儘速處理",
+        "html": "emails/09-purchase-approval.html",
+        "text": "emails/09-purchase-approval.txt",
+        "attachments": [
+          {
+            "name": "採購單明細_PR-2026.html",
+            "type": "text/html",
+            "file": "attachments/09-purchase-approval.html"
+          }
+        ]
+      },
+      "page": {
+        "name": "09 - 採購簽核登入",
+        "html": "pages/09-purchase-approval.html",
+        "capture_credentials": true,
+        "capture_passwords": false,
+        "redirect_url": ""
+      },
+      "tells": [
+        "針對有簽核權限者，利用「逾期會退回重跑」的行政壓力",
+        "金額與明細具體，降低戒心",
+        "採購系統的簽核提醒通常只給系統內連結，不會夾帶 HTML 附件"
+      ]
+    },
+    {
+      "id": "10",
+      "slug": "employee-survey",
+      "template": {
+        "name": "10 - 員工滿意度問卷（內部溝通）",
+        "subject": "{{.FirstName}}，3 分鐘問卷：年度員工意見調查（匿名）",
+        "html": "emails/10-employee-survey.html",
+        "text": "emails/10-employee-survey.txt",
+        "attachments": []
+      },
+      "page": {
+        "name": "10 - 問卷登入頁",
+        "html": "pages/10-employee-survey.html",
+        "capture_credentials": true,
+        "capture_passwords": false,
+        "redirect_url": ""
+      },
+      "tells": [
+        "抽獎獎品是誘因，不是壓力——另一種常見手法",
+        "自相矛盾之處：宣稱匿名，卻要求用公司帳號密碼登入",
+        "正式問卷平台通常用一次性連結，不需要輸入密碼"
+      ]
+    }
+  ]
+}
