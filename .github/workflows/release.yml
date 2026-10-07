@@ -21,44 +21,33 @@ jobs:
         runs-on: ${{ matrix.os }}
         strategy:
             matrix:
-                os: [windows-latest, ubuntu-latest, macos-latest]
-                arch: ['386', amd64]
-                # We sometimes use different verbiage for things (e.g. "darwin"
-                # for the GOOS build flag and "osx" in the actual release ZIP).
-                # We need to specify those here.
+                # linux/amd64 only. This fork is deployed on Ubuntu x86-64 and
+                # nowhere else, so the other three archives cost four runners per
+                # release and were never installed.
+                #
+                # Note what this gives up: ci.yml builds on ubuntu-latest alone,
+                # so the windows and macos jobs here were the only thing compiling
+                # this code for another platform. Nothing in the tree is platform
+                # specific today - no build tags beyond the Go version ones in
+                # context/, no _windows.go or _darwin.go - but non-portable code
+                # added later will no longer be caught before a release.
+                #
+                # To publish a platform again, add its entry below and restore the
+                # step that sets RELEASE for it: a 386 build needs gcc-multilib on
+                # ubuntu, and windows needs the Out-File form of the assignment
+                # because of actions/runner#1636.
                 include:
-                    - os: windows-latest
-                      goos: windows
-                      bin: 'gophish.exe'
-                      releaseos: windows
                     - os: ubuntu-latest
+                      arch: amd64
                       goos: linux
                       bin: 'gophish'
                       releaseos: linux
-                    - os: macos-latest
-                      goos: darwin
-                      bin: 'gophish'
-                      releaseos: osx
-                # Don't build windows-32bit due to missing MinGW dependencies
-                # Don't build osx-32bit due to eventual drop in Go support
-                exclude:
-                    - os: windows-latest
-                      arch: '386'
-                    - os: macos-latest
-                      arch: '386'
         steps:
             - name: Set up Go
               uses: actions/setup-go@v5
               with:
                 go-version: '1.23'
-            - if: matrix.os == 'ubuntu-latest'
-              run: sudo apt-get update && sudo apt-get install -y gcc-multilib
-            - if: matrix.arch == '386'
-              run: echo "RELEASE=gophish-${{ env.TAG }}-${{ matrix.releaseos }}-32bit" >> $GITHUB_ENV
-            - if: matrix.arch == 'amd64'
-              run: echo "RELEASE=gophish-${{ env.TAG }}-${{ matrix.releaseos }}-64bit" >> $GITHUB_ENV
-            - if: matrix.os == 'windows-latest'
-              run: echo "RELEASE=gophish-${{ env.TAG }}-${{ matrix.releaseos }}-64bit" | Out-File -FilePath $env:GITHUB_ENV -Append # https://github.com/actions/runner/issues/1636
+            - run: echo "RELEASE=gophish-${{ env.TAG }}-${{ matrix.releaseos }}-64bit" >> $GITHUB_ENV
             # Pin to the tag so a workflow_dispatch rebuild produces the same
             # source as the original release, not whatever the default branch
             # happens to be now.

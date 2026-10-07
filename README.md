@@ -891,7 +891,7 @@ go test -race -count=1 ./models/... ./controllers/...
 | `CI` | Go 1.21 / 1.22 / 1.23 的建置、`gofmt` 檢查、完整測試、race detector |
 | `MySQL migrations` | 於真實 `mysql:8.0` 容器套用全部 migration、驗證 schema、透過 API 建立活動、驗證歷史資料回填 |
 | `Ubuntu deployment` | 在真實 Ubuntu runner 上執行 `deploy/install.sh`：shellcheck、systemd 服務啟動、非 root 身分、loopback 綁定、各端點回應、設定與權限檢查、就地升級、`nginx -t` 驗證範本 |
-| `Build Gophish Release` | 建立 GitHub Release 時觸發，產出 Windows / Linux / macOS 的 zip |
+| `Build Gophish Release` | 建立 GitHub Release 時觸發，產出 Linux x86-64 的 zip（本分支只部署於此平台；要加回其他平台見 `release.yml` 的 matrix 註解） |
 
 ### 只跑三動作追蹤的測試
 
