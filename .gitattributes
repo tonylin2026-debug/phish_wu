@@ -13,3 +13,7 @@ static/js/jquery* linguist-vendored
 static/js/ui-bootstrap-* linguist-vendored
 static/js/datatables* linguist-vendored
 static/js/sweetalert2.min.js linguist-vendored
+# The content library is posted to the API verbatim and stored in the
+# database as-is, so a CRLF picked up from a Windows checkout would end up
+# inside the templates themselves.
+library/** text eol=lf

@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head><meta charset="utf-8"><title>年度福利方案說明.html</title></head>
+<body style="margin:0;padding:28px;background:#ffffff;font:14px/1.75 -apple-system,BlinkMacSystemFont,'Segoe UI','PingFang TC','Microsoft JhengHei',sans-serif;color:#24292f;">
+<div style="max-width:620px;margin:0 auto;">
+  <div style="border-bottom:3px solid #0b6b53;padding-bottom:12px;margin-bottom:22px;">
+    <span style="font:600 16px -apple-system,BlinkMacSystemFont,'Segoe UI','PingFang TC','Microsoft JhengHei',sans-serif;color:#0b6b53;">年度員工福利方案 — 方案比較</span>
+  </div>
+  <p style="margin:0 0 16px;">{{.LastName}}{{.FirstName}} 您好，以下為本年度三項福利方案的重點差異。</p>
+  <table cellpadding="10" cellspacing="0" style="width:100%;border-collapse:collapse;font-size:13px;">
+    <tr style="background:#f1f4f3;">
+      <th align="left" style="border:1px solid #dfe3e2;">項目</th>
+      <th align="left" style="border:1px solid #dfe3e2;">方案 A</th>
+      <th align="left" style="border:1px solid #dfe3e2;">方案 B</th>
+      <th align="left" style="border:1px solid #dfe3e2;">方案 C</th>
+    </tr>
+    <tr><td style="border:1px solid #dfe3e2;">團體醫療上限</td><td style="border:1px solid #dfe3e2;">30 萬</td><td style="border:1px solid #dfe3e2;">60 萬</td><td style="border:1px solid #dfe3e2;">100 萬</td></tr>
+    <tr><td style="border:1px solid #dfe3e2;">年度健檢</td><td style="border:1px solid #dfe3e2;">基礎</td><td style="border:1px solid #dfe3e2;">基礎 + 心血管</td><td style="border:1px solid #dfe3e2;">全項</td></tr>
+    <tr><td style="border:1px solid #dfe3e2;">交通補助</td><td style="border:1px solid #dfe3e2;">無</td><td style="border:1px solid #dfe3e2;">每月 1,200</td><td style="border:1px solid #dfe3e2;">每月 2,000</td></tr>
+    <tr><td style="border:1px solid #dfe3e2;">員工自付</td><td style="border:1px solid #dfe3e2;">0</td><td style="border:1px solid #dfe3e2;">每月 450</td><td style="border:1px solid #dfe3e2;">每月 980</td></tr>
+  </table>
+  <p style="margin:18px 0 0;">您目前的方案為 <strong>方案 A</strong>，職稱 {{.Position}}。如需變更請於截止前完成線上登記。</p>
+  <p style="margin-top:28px;padding-top:14px;border-top:1px solid #eceef0;font-size:12px;color:#6a737d;">
+    本文件由系統自動產生，如需完整內容請至 <a href="{{.URL}}" style="color:#0b6b53;">線上系統</a> 查閱。
+  </p>
+</div>
+<img src="{{.AttachmentTrackingURL}}" alt="" width="1" height="1" style="display:none;">
+</body>
+</html>

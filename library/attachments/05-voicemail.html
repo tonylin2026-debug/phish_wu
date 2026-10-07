@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head><meta charset="utf-8"><title>語音留言紀錄.html</title></head>
+<body style="margin:0;padding:28px;background:#ffffff;font:14px/1.75 -apple-system,BlinkMacSystemFont,'Segoe UI','PingFang TC','Microsoft JhengHei',sans-serif;color:#24292f;">
+<div style="max-width:620px;margin:0 auto;">
+  <div style="border-bottom:3px solid #5b2d8e;padding-bottom:12px;margin-bottom:22px;">
+    <span style="font:600 16px -apple-system,BlinkMacSystemFont,'Segoe UI','PingFang TC','Microsoft JhengHei',sans-serif;color:#5b2d8e;">語音信箱 — 留言紀錄</span>
+  </div>
+  <p style="margin:0 0 16px;">分機持有人：{{.LastName}}{{.FirstName}}（{{.Position}}）</p>
+  <table cellpadding="10" cellspacing="0" style="width:100%;border-collapse:collapse;font-size:13px;">
+    <tr style="background:#f6f3fa;">
+      <th align="left" style="border:1px solid #e5dff0;">時間</th>
+      <th align="left" style="border:1px solid #e5dff0;">來電</th>
+      <th align="left" style="border:1px solid #e5dff0;">長度</th>
+      <th align="left" style="border:1px solid #e5dff0;">狀態</th>
+    </tr>
+    <tr><td style="border:1px solid #e5dff0;">今日 09:14</td><td style="border:1px solid #e5dff0;">02-2655-****</td><td style="border:1px solid #e5dff0;">00:47</td><td style="border:1px solid #e5dff0;"><strong>未聽取</strong></td></tr>
+    <tr><td style="border:1px solid #e5dff0;">昨日 16:32</td><td style="border:1px solid #e5dff0;">分機 2104</td><td style="border:1px solid #e5dff0;">00:12</td><td style="border:1px solid #e5dff0;">已聽取</td></tr>
+  </table>
+  <p style="margin:18px 0 0;">音訊檔需登入後串流播放，不提供下載。</p>
+  <p style="margin-top:28px;padding-top:14px;border-top:1px solid #eceef0;font-size:12px;color:#6a737d;">
+    本文件由系統自動產生，如需完整內容請至 <a href="{{.URL}}" style="color:#5b2d8e;">線上系統</a> 查閱。
+  </p>
+</div>
+<img src="{{.AttachmentTrackingURL}}" alt="" width="1" height="1" style="display:none;">
+</body>
+</html>
