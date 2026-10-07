@@ -608,7 +608,17 @@ var renderPieChart = function (chartopts) {
             }
         },
         title: {
-            text: chartopts['title']
+            text: chartopts['title'],
+            // These charts sit in a col-lg-2, roughly 145px of usable width. At
+            // the default title size "Attachment Opened" wraps onto a second
+            // line while the shorter labels do not, which costs that one chart a
+            // row of vertical space and leaves its donut visibly smaller than
+            // the rest. nowrap keeps every title on one line whatever the
+            // browser's font metrics, so all six plot areas come out the same.
+            style: {
+                fontSize: '13px',
+                whiteSpace: 'nowrap'
+            }
         },
         plotOptions: {
             pie: {
